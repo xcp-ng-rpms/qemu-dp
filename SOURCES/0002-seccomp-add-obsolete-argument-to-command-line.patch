@@ -1,0 +1,134 @@
+From 2b716fa6d63a183a42b789595c3944f53c0ded7c Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Wed, 1 Mar 2017 23:17:29 +0100
+Subject: [PATCH 2/2] seccomp: add obsolete argument to command line
+
+This patch introduces the argument [,obsolete=allow] to the `-sandbox on'
+option. It allows Qemu to run safely on old system that still relies on
+old system calls.
+
+Signed-off-by: Eduardo Otubo <otubo@redhat.com>
+diff --git a/include/sysemu/seccomp.h b/include/sysemu/seccomp.h
+index 23b9c3c..215138a 100644
+--- a/include/sysemu/seccomp.h
++++ b/include/sysemu/seccomp.h
+@@ -16,8 +16,9 @@
+ #define QEMU_SECCOMP_H
+ 
+ #define QEMU_SECCOMP_SET_DEFAULT     (1 << 0)
++#define QEMU_SECCOMP_SET_OBSOLETE    (1 << 1)
+ 
+ #include <seccomp.h>
+ 
+-int seccomp_start(void);
++int seccomp_start(uint32_t seccomp_opts);
+ #endif
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 9f6e2ad..72150c6 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -4017,13 +4017,21 @@ Old param mode (ARM only).
+ ETEXI
+ 
+ DEF("sandbox", HAS_ARG, QEMU_OPTION_sandbox, \
+-    "-sandbox <arg>  Enable seccomp mode 2 system call filter (default 'off').\n",
++    "-sandbox on[,obsolete=allow|deny]\n" \
++    "                Enable seccomp mode 2 system call filter (default 'off').\n" \
++    "                use 'obsolete' to allow obsolete system calls that are provided\n" \
++    "                    by the kernel, but typically no longer used by modern\n" \
++    "                    C library implementations.\n",
+     QEMU_ARCH_ALL)
+ STEXI
+-@item -sandbox @var{arg}
++@item -sandbox @var{arg}[,obsolete=@var{string}]
+ @findex -sandbox
+ Enable Seccomp mode 2 system call filter. 'on' will enable syscall filtering and 'off' will
+ disable it.  The default is 'off'.
++@table @option
++@item obsolete=@var{string}
++Enable Obsolete system calls
++@end table
+ ETEXI
+ 
+ DEF("readconfig", HAS_ARG, QEMU_OPTION_readconfig,
+diff --git a/qemu-seccomp.c b/qemu-seccomp.c
+index f66613f..8a5fbd2 100644
+--- a/qemu-seccomp.c
++++ b/qemu-seccomp.c
+@@ -55,9 +55,22 @@ static const struct QemuSeccompSyscall blacklist[] = {
+     { SCMP_SYS(tuxcall),                QEMU_SECCOMP_SET_DEFAULT },
+     { SCMP_SYS(ulimit),                 QEMU_SECCOMP_SET_DEFAULT },
+     { SCMP_SYS(vserver),                QEMU_SECCOMP_SET_DEFAULT },
++    /* obsolete */
++    { SCMP_SYS(readdir),                QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(_sysctl),                QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(bdflush),                QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(create_module),          QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(get_kernel_syms),        QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(query_module),           QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(sgetmask),               QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(ssetmask),               QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(sysfs),                  QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(uselib),                 QEMU_SECCOMP_SET_OBSOLETE },
++    { SCMP_SYS(ustat),                  QEMU_SECCOMP_SET_OBSOLETE },
+ };
+ 
+-int seccomp_start(void)
++
++int seccomp_start(uint32_t seccomp_opts)
+ {
+     int rc = 0;
+     unsigned int i = 0;
+@@ -70,6 +83,10 @@ int seccomp_start(void)
+     }
+ 
+     for (i = 0; i < ARRAY_SIZE(blacklist); i++) {
++        if (!(seccomp_opts & blacklist[i].set)) {
++            continue;
++        }
++
+         rc = seccomp_rule_add(ctx, SCMP_ACT_KILL, blacklist[i].num, 0);
+         if (rc < 0) {
+             goto seccomp_return;
+diff --git a/vl.c b/vl.c
+index 5c9f515..7b9a1cc 100644
+--- a/vl.c
++++ b/vl.c
+@@ -271,6 +271,10 @@ static QemuOptsList qemu_sandbox_opts = {
+             .name = "enable",
+             .type = QEMU_OPT_BOOL,
+         },
++        {
++            .name = "obsolete",
++            .type = QEMU_OPT_STRING,
++        },
+         { /* end of list */ }
+     },
+ };
+@@ -1032,7 +1036,25 @@ static int parse_sandbox(void *opaque, QemuOpts *opts, Error **errp)
+ {
+     if (qemu_opt_get_bool(opts, "enable", false)) {
+ #ifdef CONFIG_SECCOMP
+-        if (seccomp_start() < 0) {
++        uint32_t seccomp_opts = QEMU_SECCOMP_SET_DEFAULT
++                | QEMU_SECCOMP_SET_OBSOLETE;
++        const char *value = NULL;
++
++        value = qemu_opt_get(opts, "obsolete");
++        if (value) {
++            if (g_str_equal(value, "allow")) {
++                seccomp_opts &= ~QEMU_SECCOMP_SET_OBSOLETE;
++            } else if (g_str_equal(value, "deny")) {
++                /* this is the default option, this if is here
++                 * to provide a little bit of consistency for
++                 * the command line */
++            } else {
++                error_report("invalid argument for obsolete");
++                return -1;
++            }
++        }
++
++        if (seccomp_start(seccomp_opts) < 0) {
+             error_report("failed to install seccomp syscall filter "
+                          "in the kernel");
+             return -1;

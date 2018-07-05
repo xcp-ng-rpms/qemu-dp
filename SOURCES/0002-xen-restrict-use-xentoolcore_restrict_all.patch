@@ -1,0 +1,107 @@
+From patchwork Mon Oct  9 16:01:36 2017
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [2/8] xen: restrict: use xentoolcore_restrict_all
+X-Patchwork-Submitter: Ian Jackson <ian.jackson@eu.citrix.com>
+X-Patchwork-Id: 823324
+Message-Id: <1507564902-9000-3-git-send-email-ian.jackson@eu.citrix.com>
+To: <qemu-devel@nongnu.org>
+Cc: Juergen Gross <jgross@suse.com>,
+ Stefano Stabellini <sstabellini@kernel.org>,
+ Ian Jackson <Ian.Jackson@eu.citrix.com>,
+ Ross Lagerwall <ross.lagerwall@citrix.com>,
+ Anthony PERARD <anthony.perard@citrix.com>, xen-devel@lists.xenproject.org
+Date: Mon, 9 Oct 2017 17:01:36 +0100
+From: Ian Jackson <ian.jackson@eu.citrix.com>
+List-Id: <qemu-devel.nongnu.org>
+
+And insist that it works.
+
+Drop individual use of xendevicemodel_restrict and
+xenforeignmemory_restrict.  These are not actually effective in this
+version of qemu, because qemu has a large number of fds open onto
+various Xen control devices.
+
+The restriction arrangements are still not right, because the
+restriction needs to be done very late - after qemu has opened all of
+its control fds.
+
+xentoolcore_restrict_all and xentoolcore.h are available in Xen 4.10
+and later, only.  Provide a compatibility stub.  And drop the
+compatibility stubs for the old functions.
+
+Signed-off-by: Ian Jackson <Ian.Jackson@eu.citrix.com>
+Reviewed-by: Anthony PERARD <anthony.perard@citrix.com>
+diff --git a/include/hw/xen/xen_common.h b/include/hw/xen/xen_common.h
+index 86c7f26..3f44a63 100644
+--- a/include/hw/xen/xen_common.h
++++ b/include/hw/xen/xen_common.h
+@@ -91,6 +91,16 @@ static inline void *xenforeignmemory_map2(xenforeignmemory_handle *h,
+     return xenforeignmemory_map(h, dom, prot, pages, arr, err);
+ }
+ 
++static inline int xentoolcore_restrict_all(domid_t domid)
++{
++    errno = ENOTTY;
++    return -1;
++}
++
++#else /* CONFIG_XEN_CTRL_INTERFACE_VERSION >= 41000 */
++
++#include <xentoolcore.h>
++
+ #endif
+ 
+ #if CONFIG_XEN_CTRL_INTERFACE_VERSION < 40900
+@@ -218,20 +228,6 @@ static inline int xendevicemodel_set_mem_type(
+     return xc_hvm_set_mem_type(dmod, domid, mem_type, first_pfn, nr);
+ }
+ 
+-static inline int xendevicemodel_restrict(
+-    xendevicemodel_handle *dmod, domid_t domid)
+-{
+-    errno = ENOTTY;
+-    return -1;
+-}
+-
+-static inline int xenforeignmemory_restrict(
+-    xenforeignmemory_handle *fmem, domid_t domid)
+-{
+-    errno = ENOTTY;
+-    return -1;
+-}
+-
+ #else /* CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40900 */
+ 
+ #undef XC_WANT_COMPAT_DEVICEMODEL_API
+@@ -290,28 +286,8 @@ static inline int xen_modified_memory(domid_t domid, uint64_t first_pfn,
+ static inline int xen_restrict(domid_t domid)
+ {
+     int rc;
+-
+-    /* Attempt to restrict devicemodel operations */
+-    rc = xendevicemodel_restrict(xen_dmod, domid);
++    rc = xentoolcore_restrict_all(domid);
+     trace_xen_domid_restrict(rc ? errno : 0);
+-
+-    if (rc < 0) {
+-        /*
+-         * If errno is ENOTTY then restriction is not implemented so
+-         * there's no point in trying to restrict other types of
+-         * operation, but it should not be treated as a failure.
+-         */
+-        if (errno == ENOTTY) {
+-            return 0;
+-        }
+-
+-        return rc;
+-    }
+-
+-    /* Restrict foreignmemory operations */
+-    rc = xenforeignmemory_restrict(xen_fmem, domid);
+-    trace_xen_domid_restrict(rc ? errno : 0);
+-
+     return rc;
+ }
+ 

@@ -1,0 +1,124 @@
+From: Mark Syms <mark.syms@citrix.com>
+Date: Wed, 11 Apr 2018 15:33:59 +0100
+Subject: Use the legacy grant copy ioctl
+
+This patch to be removed when the upstream ioctl is present in the kernel.
+
+Signed-off-by: Mark Syms <mark.syms@citrix.com>
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index 14327b3..1aa9c79 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -535,10 +535,64 @@ static int ioreq_init_copy_buffers(struct ioreq *ioreq)
+     return 0;
+ }
+ 
++struct xengntdev_handle {
++    void *logger, *logger_tofree;
++    int fd;
++};
++
++typedef struct xengntdev_handle xengnttab_handle;
++
++struct legacy_gntdev_grant_copy_segment {
++	/*
++	 * source address and length
++	 */
++	struct iovec iov;
++
++	/* the granted page */
++	uint32_t ref;
++
++	/* offset in the granted page */
++	uint16_t offset;
++
++	/* grant copy result (GNTST_XXX) */
++	int16_t status;
++};
++
++struct legacy_ioctl_gntdev_grant_copy {
++	/*
++	 * copy direction: 0 to copy to guest, 1 to copy from guest
++	 */
++	int dir;
++
++	/* domain ID */
++	uint32_t domid;
++
++	unsigned int count;
++
++	struct legacy_gntdev_grant_copy_segment *segments;
++};
++#define IOCTL_LEGACY_GNTDEV_GRANT_COPY \
++_IOC(_IOC_NONE, 'G', 8, sizeof(struct legacy_ioctl_gntdev_grant_copy))
++
++static int check_for_legacy_grant_copy(xengnttab_handle *xgt)
++{
++    int rc;
++    int fd = xgt->fd;
++    struct legacy_ioctl_gntdev_grant_copy copy;
++
++    copy.segments = NULL;
++    copy.count = 0;
++
++    rc = ioctl(fd, IOCTL_LEGACY_GNTDEV_GRANT_COPY, &copy);
++
++    return rc;
++}
++
+ static int ioreq_grant_copy(struct ioreq *ioreq)
+ {
+     xengnttab_handle *gnt = ioreq->blkdev->xendev.gnttabdev;
+-    xengnttab_grant_copy_segment_t segs[BLKIF_MAX_SEGMENTS_PER_REQUEST];
++    struct legacy_ioctl_gntdev_grant_copy gcopy;
++    struct legacy_gntdev_grant_copy_segment segs[BLKIF_MAX_SEGMENTS_PER_REQUEST];
+     int i, count, rc;
+     int64_t file_blk = ioreq->blkdev->file_blk;
+ 
+@@ -549,24 +603,21 @@ static int ioreq_grant_copy(struct ioreq *ioreq)
+     count = ioreq->v.niov;
+ 
+     for (i = 0; i < count; i++) {
+-        if (ioreq->req.operation == BLKIF_OP_READ) {
+-            segs[i].flags = GNTCOPY_dest_gref;
+-            segs[i].dest.foreign.ref = ioreq->refs[i];
+-            segs[i].dest.foreign.domid = ioreq->domids[i];
+-            segs[i].dest.foreign.offset = ioreq->req.seg[i].first_sect * file_blk;
+-            segs[i].source.virt = ioreq->v.iov[i].iov_base;
+-        } else {
+-            segs[i].flags = GNTCOPY_source_gref;
+-            segs[i].source.foreign.ref = ioreq->refs[i];
+-            segs[i].source.foreign.domid = ioreq->domids[i];
+-            segs[i].source.foreign.offset = ioreq->req.seg[i].first_sect * file_blk;
+-            segs[i].dest.virt = ioreq->v.iov[i].iov_base;
+-        }
+-        segs[i].len = (ioreq->req.seg[i].last_sect
+-                       - ioreq->req.seg[i].first_sect + 1) * file_blk;
++        struct legacy_gntdev_grant_copy_segment *gcopy_seg = &segs[i];
++        gcopy.domid = ioreq->domids[i];
++        gcopy_seg->iov.iov_base = ioreq->v.iov[i].iov_base;
++        gcopy_seg->iov.iov_len = (ioreq->req.seg[i].last_sect
++                           - ioreq->req.seg[i].first_sect + 1) * file_blk;
++        gcopy_seg->ref = ioreq->refs[i];
++        gcopy_seg->offset = ioreq->req.seg[i].first_sect * file_blk;
+     }
+ 
+-    rc = xengnttab_grant_copy(gnt, count, segs);
++    gcopy.dir = ioreq->req.operation != BLKIF_OP_READ;
++
++    gcopy.count = count;
++    gcopy.segments = segs;
++
++    rc = ioctl(gnt->fd, IOCTL_LEGACY_GNTDEV_GRANT_COPY, &gcopy);
+ 
+     if (rc) {
+         xen_pv_printf(&ioreq->blkdev->xendev, 0,
+@@ -1057,7 +1108,7 @@ static int blk_init(struct XenDevice *xendev)
+     blkdev->file_blk  = BLOCK_SIZE;
+ 
+     blkdev->feature_grant_copy =
+-                (xengnttab_grant_copy(blkdev->xendev.gnttabdev, 0, NULL) == 0);
++                (check_for_legacy_grant_copy(blkdev->xendev.gnttabdev) == 0);
+ 
+     xen_pv_printf(&blkdev->xendev, 3, "grant copy operation %s\n",
+                   blkdev->feature_grant_copy ? "enabled" : "disabled");

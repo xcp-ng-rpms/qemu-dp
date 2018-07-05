@@ -1,0 +1,66 @@
+From 6af998db05aec9af95a06f84ad94f1b96785e667 Mon Sep 17 00:00:00 2001
+From: "Daniel P. Berrange" <berrange@redhat.com>
+Date: Mon, 18 Dec 2017 19:12:16 +0000
+Subject: [PATCH 8/8] ui: remove 'sync' parameter from vnc_update_client
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There is only one caller of vnc_update_client and that always passes false
+for the 'sync' parameter.
+
+Signed-off-by: Daniel P. Berrange <berrange@redhat.com>
+Reviewed-by: Darren Kenny <darren.kenny@oracle.com>
+Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+Message-id: 20171218191228.31018-2-berrange@redhat.com
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+diff --git a/ui/vnc.c b/ui/vnc.c
+index b6ee85d..819990c 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -596,7 +596,7 @@ VncInfo2List *qmp_query_vnc_servers(Error **errp)
+    3) resolutions > 1024
+ */
+ 
+-static int vnc_update_client(VncState *vs, int has_dirty, bool sync);
++static int vnc_update_client(VncState *vs, int has_dirty);
+ static void vnc_disconnect_start(VncState *vs);
+ 
+ static void vnc_colordepth(VncState *vs);
+@@ -961,7 +961,7 @@ static int find_and_clear_dirty_height(VncState *vs,
+     return h;
+ }
+ 
+-static int vnc_update_client(VncState *vs, int has_dirty, bool sync)
++static int vnc_update_client(VncState *vs, int has_dirty)
+ {
+     if (vs->disconnecting) {
+         vnc_disconnect_finish(vs);
+@@ -1025,9 +1025,6 @@ static int vnc_update_client(VncState *vs, int has_dirty, bool sync)
+         }
+ 
+         vnc_job_push(job);
+-        if (sync) {
+-            vnc_jobs_join(vs);
+-        }
+         vs->force_update = 0;
+         vs->has_dirty = 0;
+         return n;
+@@ -1035,8 +1032,6 @@ static int vnc_update_client(VncState *vs, int has_dirty, bool sync)
+ 
+     if (vs->disconnecting) {
+         vnc_disconnect_finish(vs);
+-    } else if (sync) {
+-        vnc_jobs_join(vs);
+     }
+ 
+     return 0;
+@@ -2863,7 +2858,7 @@ static void vnc_refresh(DisplayChangeListener *dcl)
+     vnc_unlock_display(vd);
+ 
+     QTAILQ_FOREACH_SAFE(vs, &vd->clients, next, vn) {
+-        rects += vnc_update_client(vs, has_dirty, false);
++        rects += vnc_update_client(vs, has_dirty);
+         /* vs might be free()ed here */
+     }
+ 

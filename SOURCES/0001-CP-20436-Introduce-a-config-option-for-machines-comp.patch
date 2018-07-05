@@ -1,0 +1,76 @@
+From 6730ee633e14290bbccda33c4861e10d941fd1d9 Mon Sep 17 00:00:00 2001
+From: Igor Druzhinin <igor.druzhinin@citrix.com>
+Date: Tue, 16 May 2017 23:03:47 +0100
+Subject: [PATCH] CP-20436 Introduce a config option for machines compatible
+ with QEMU-trad
+
+A new trad-compat={true,false} option is introduced for all PC machines
+that are expected to be binary compatible with QEMU-trad. For now,
+just pass it always as true - it's expected to be passed as a qemu-wrapper
+parameter from XAPI later.
+
+Signed-off-by: Igor Druzhinin <igor.druzhinin@citrix.com>
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index ccdaa75..594aaa1 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -2211,6 +2211,20 @@ static void pc_machine_set_pit(Object *obj, bool value, Error **errp)
+     pcms->pit = value;
+ }
+ 
++static bool pc_machine_get_trad_compat(Object *obj, Error **errp)
++{
++    PCMachineState *pcms = PC_MACHINE(obj);
++
++    return pcms->is_trad_compat;
++}
++
++static void pc_machine_set_trad_compat(Object *obj, bool value, Error **errp)
++{
++    PCMachineState *pcms = PC_MACHINE(obj);
++
++    pcms->is_trad_compat = value;
++}
++
+ static void pc_machine_initfn(Object *obj)
+ {
+     PCMachineState *pcms = PC_MACHINE(obj);
+@@ -2225,6 +2239,7 @@ static void pc_machine_initfn(Object *obj)
+     pcms->smbus = true;
+     pcms->sata = true;
+     pcms->pit = true;
++    pcms->is_trad_compat = false;
+ }
+ 
+ static void pc_machine_reset(void)
+@@ -2373,6 +2388,9 @@ static void pc_machine_class_init(ObjectClass *oc, void *data)
+ 
+     object_class_property_add_bool(oc, PC_MACHINE_PIT,
+         pc_machine_get_pit, pc_machine_set_pit, &error_abort);
++
++    object_class_property_add_bool(oc, PC_MACHINE_TRAD_COMPAT,
++        pc_machine_get_trad_compat, pc_machine_set_trad_compat, &error_abort);
+ }
+ 
+ static const TypeInfo pc_machine_info = {
+diff --git a/include/hw/i386/pc.h b/include/hw/i386/pc.h
+index f278b3a..4267175 100644
+--- a/include/hw/i386/pc.h
++++ b/include/hw/i386/pc.h
+@@ -82,6 +82,8 @@ struct PCMachineState {
+     /* Address space used by IOAPIC device. All IOAPIC interrupts
+      * will be translated to MSI messages in the address space. */
+     AddressSpace *ioapic_as;
++
++    bool is_trad_compat;
+ };
+ 
+ #define PC_MACHINE_ACPI_DEVICE_PROP "acpi-device"
+@@ -93,6 +95,7 @@ struct PCMachineState {
+ #define PC_MACHINE_SMBUS            "smbus"
+ #define PC_MACHINE_SATA             "sata"
+ #define PC_MACHINE_PIT              "pit"
++#define PC_MACHINE_TRAD_COMPAT      "trad-compat"
+ 
+ /**
+  * PCMachineClass:

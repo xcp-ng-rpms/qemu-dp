@@ -1,0 +1,24 @@
+From 090fdc83b0960f68d204624a73c6814780da52d9 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Marc-Andr=C3=A9=20Lureau?= <marcandre.lureau@redhat.com>
+Date: Wed, 20 Dec 2017 15:06:18 +0100
+Subject: [PATCH 7/7] vnc: fix debug spelling
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+Message-id: 20171220140618.12701-1-marcandre.lureau@redhat.com
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+diff --git a/ui/vnc.c b/ui/vnc.c
+index 4672e4b..b6ee85d 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -2255,7 +2255,7 @@ static int protocol_client_msg(VncState *vs, uint8_t *data, size_t len)
+                 }
+                 vs->as.nchannels = read_u8(data, 5);
+                 if (vs->as.nchannels != 1 && vs->as.nchannels != 2) {
+-                    VNC_DEBUG("Invalid audio channel coount %d\n",
++                    VNC_DEBUG("Invalid audio channel count %d\n",
+                               read_u8(data, 5));
+                     vnc_client_error(vs);
+                     break;

@@ -1,0 +1,128 @@
+From patchwork Mon Oct  9 16:01:37 2017
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [3/8] xen: defer call to xen_restrict until just before os_setup_post
+X-Patchwork-Submitter: Ian Jackson <ian.jackson@eu.citrix.com>
+X-Patchwork-Id: 823320
+Message-Id: <1507564902-9000-4-git-send-email-ian.jackson@eu.citrix.com>
+To: <qemu-devel@nongnu.org>
+Cc: Juergen Gross <jgross@suse.com>,
+ Stefano Stabellini <sstabellini@kernel.org>,
+ Ian Jackson <Ian.Jackson@eu.citrix.com>,
+ Ross Lagerwall <ross.lagerwall@citrix.com>,
+ Anthony PERARD <anthony.perard@citrix.com>, xen-devel@lists.xenproject.org
+Date: Mon, 9 Oct 2017 17:01:37 +0100
+From: Ian Jackson <ian.jackson@eu.citrix.com>
+List-Id: <qemu-devel.nongnu.org>
+
+We need to restrict *all* the control fds that qemu opens.  Looking in
+/proc/PID/fd shows there are many; their allocation seems scattered
+throughout Xen support code in qemu.
+
+We must postpone the restrict call until roughly the same time as qemu
+changes its uid, chroots (if applicable), and so on.
+
+There doesn't seem to be an appropriate hook already.  The RunState
+change hook fires at different times depending on exactly what mode
+qemu is operating in.
+
+And it appears that no-one but the Xen code wants a hook at this phase
+of execution.  So, introduce a bare call to a new function
+xen_setup_post, just before os_setup_post.  Also provide the
+appropriate stub for when Xen compilation is disabled.
+
+We do the restriction before rather than after os_setup_post, because
+xen_restrict may need to open /dev/null, and os_setup_post might have
+called chroot.
+
+Signed-off-by: Ian Jackson <Ian.Jackson@eu.citrix.com>
+Reviewed-by: Anthony PERARD <anthony.perard@citrix.com>
+diff --git a/hw/i386/xen/xen-hvm.c b/hw/i386/xen/xen-hvm.c
+index ffd20dc..d1c3803 100644
+--- a/hw/i386/xen/xen-hvm.c
++++ b/hw/i386/xen/xen-hvm.c
+@@ -1256,14 +1256,6 @@ void xen_hvm_init(PCMachineState *pcms, MemoryRegion **ram_memory)
+         goto err;
+     }
+ 
+-    if (xen_domid_restrict) {
+-        rc = xen_restrict(xen_domid);
+-        if (rc < 0) {
+-            error_report("failed to restrict: error %d", errno);
+-            goto err;
+-        }
+-    }
+-
+     xen_create_ioreq_server(xen_domid, &state->ioservid);
+ 
+     state->exit.notify = xen_exit_notifier;
+diff --git a/hw/xen/xen-common.c b/hw/xen/xen-common.c
+index 632a938..4056420 100644
+--- a/hw/xen/xen-common.c
++++ b/hw/xen/xen-common.c
+@@ -117,6 +117,19 @@ static void xen_change_state_handler(void *opaque, int running,
+     }
+ }
+ 
++void xen_setup_post(void)
++{
++    int rc;
++
++    if (xen_domid_restrict) {
++        rc = xen_restrict(xen_domid);
++        if (rc < 0) {
++            perror("xen: failed to restrict");
++            exit(1);
++        }
++    }
++}
++
+ static int xen_init(MachineState *ms)
+ {
+     xen_xc = xc_interface_open(0, 0, 0);
+diff --git a/include/sysemu/sysemu.h b/include/sysemu/sysemu.h
+index b213696..b064a55 100644
+--- a/include/sysemu/sysemu.h
++++ b/include/sysemu/sysemu.h
+@@ -93,6 +93,8 @@ void qemu_remove_machine_init_done_notifier(Notifier *notify);
+ 
+ void qemu_announce_self(void);
+ 
++void xen_setup_post(void);
++
+ extern int autostart;
+ 
+ typedef enum {
+diff --git a/stubs/xen-hvm.c b/stubs/xen-hvm.c
+index 3ca6c51..9701feb 100644
+--- a/stubs/xen-hvm.c
++++ b/stubs/xen-hvm.c
+@@ -13,6 +13,7 @@
+ #include "hw/xen/xen.h"
+ #include "exec/memory.h"
+ #include "qmp-commands.h"
++#include "sysemu/sysemu.h"
+ 
+ int xen_pci_slot_get_pirq(PCIDevice *pci_dev, int irq_num)
+ {
+@@ -61,3 +62,7 @@ void xen_hvm_init(PCMachineState *pcms, MemoryRegion **ram_memory)
+ void qmp_xen_set_global_dirty_log(bool enable, Error **errp)
+ {
+ }
++
++void xen_setup_post(void)
++{
++}
+diff --git a/vl.c b/vl.c
+index 8e247cc..9ec2c28 100644
+--- a/vl.c
++++ b/vl.c
+@@ -4786,6 +4786,7 @@ int main(int argc, char **argv, char **envp)
+         vm_start();
+     }
+ 
++    xen_setup_post();
+     os_setup_post();
+ 
+     main_loop();

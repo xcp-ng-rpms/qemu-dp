@@ -1,0 +1,75 @@
+From patchwork Mon Oct  9 16:01:39 2017
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [5/8] xen: move xc_interface compatibility fallback further up the
+ file
+X-Patchwork-Submitter: Ian Jackson <ian.jackson@eu.citrix.com>
+X-Patchwork-Id: 823318
+Message-Id: <1507564902-9000-6-git-send-email-ian.jackson@eu.citrix.com>
+To: <qemu-devel@nongnu.org>
+Cc: Juergen Gross <jgross@suse.com>,
+ Stefano Stabellini <sstabellini@kernel.org>,
+ Ian Jackson <Ian.Jackson@eu.citrix.com>,
+ Ross Lagerwall <ross.lagerwall@citrix.com>,
+ Anthony PERARD <anthony.perard@citrix.com>, xen-devel@lists.xenproject.org
+Date: Mon, 9 Oct 2017 17:01:39 +0100
+From: Ian Jackson <ian.jackson@eu.citrix.com>
+List-Id: <qemu-devel.nongnu.org>
+
+We are going to want to use the dummy xendevicemodel_handle type in
+new stub functions in the CONFIG_XEN_CTRL_INTERFACE_VERSION < 41000
+section.  So we need to provide that definition, or (as applicable)
+include the appropriate header, earlier in the file.
+
+(Ideally the newer compatibility layers would be at the bottom of the
+file, so that they can naturally benefit from the compatibility layers
+for earlier version.  But that's rather too much for this series.)
+
+No functional change.
+
+Signed-off-by: Ian Jackson <Ian.Jackson@eu.citrix.com>
+Acked-by: Anthony PERARD <anthony.perard@citrix.com>
+diff --git a/include/hw/xen/xen_common.h b/include/hw/xen/xen_common.h
+index 3f44a63..8efdb8a 100644
+--- a/include/hw/xen/xen_common.h
++++ b/include/hw/xen/xen_common.h
+@@ -78,6 +78,17 @@ static inline void *xenforeignmemory_map(xc_interface *h, uint32_t dom,
+ 
+ extern xenforeignmemory_handle *xen_fmem;
+ 
++#if CONFIG_XEN_CTRL_INTERFACE_VERSION < 40900
++
++typedef xc_interface xendevicemodel_handle;
++
++#else /* CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40900 */
++
++#undef XC_WANT_COMPAT_DEVICEMODEL_API
++#include <xendevicemodel.h>
++
++#endif
++
+ #if CONFIG_XEN_CTRL_INTERFACE_VERSION < 41000
+ 
+ #define XEN_COMPAT_PHYSMAP
+@@ -105,8 +116,6 @@ static inline int xentoolcore_restrict_all(domid_t domid)
+ 
+ #if CONFIG_XEN_CTRL_INTERFACE_VERSION < 40900
+ 
+-typedef xc_interface xendevicemodel_handle;
+-
+ static inline xendevicemodel_handle *xendevicemodel_open(
+     struct xentoollog_logger *logger, unsigned int open_flags)
+ {
+@@ -228,11 +237,6 @@ static inline int xendevicemodel_set_mem_type(
+     return xc_hvm_set_mem_type(dmod, domid, mem_type, first_pfn, nr);
+ }
+ 
+-#else /* CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40900 */
+-
+-#undef XC_WANT_COMPAT_DEVICEMODEL_API
+-#include <xendevicemodel.h>
+-
+ #endif
+ 
+ extern xendevicemodel_handle *xen_dmod;

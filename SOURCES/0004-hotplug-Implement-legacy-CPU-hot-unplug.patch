@@ -1,0 +1,94 @@
+From 296852489da11bb4e9472192e20ba2176a3884c5 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Mon, 3 Jul 2017 13:56:36 +0100
+Subject: [PATCH 4/4] hotplug: Implement legacy CPU hot unplug
+
+This is done in the same way that qemu-trad does CPU hot unplug.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/hw/acpi/cpu_hotplug.c b/hw/acpi/cpu_hotplug.c
+index f15a240..659df88 100644
+--- a/hw/acpi/cpu_hotplug.c
++++ b/hw/acpi/cpu_hotplug.c
+@@ -72,6 +72,18 @@ static void acpi_set_cpu_present_bit(AcpiCpuHotplug *g, CPUState *cpu,
+     g->sts[cpu_id / 8] |= (1 << (cpu_id % 8));
+ }
+ 
++static void acpi_clear_cpu_present_bit(AcpiCpuHotplug *g, CPUState *cpu)
++{
++    CPUClass *k = CPU_GET_CLASS(cpu);
++    int64_t cpu_id;
++
++    cpu_id = k->get_arch_id(cpu);
++    if ((cpu_id / 8) >= ACPI_GPE_PROC_LEN)
++        return;
++
++    g->sts[cpu_id / 8] &= ~(1 << (cpu_id % 8));
++}
++
+ void legacy_acpi_cpu_plug_cb(HotplugHandler *hotplug_dev,
+                              AcpiCpuHotplug *g, DeviceState *dev, Error **errp)
+ {
+@@ -82,6 +94,13 @@ void legacy_acpi_cpu_plug_cb(HotplugHandler *hotplug_dev,
+     acpi_send_event(DEVICE(hotplug_dev), ACPI_CPU_HOTPLUG_STATUS);
+ }
+ 
++void legacy_acpi_cpu_unplug_cb(HotplugHandler *hotplug_dev,
++                               AcpiCpuHotplug *g, DeviceState *dev)
++{
++    acpi_clear_cpu_present_bit(g, CPU(dev));
++    acpi_send_event(DEVICE(hotplug_dev), ACPI_CPU_HOTPLUG_STATUS);
++}
++
+ void legacy_acpi_cpu_hotplug_init(MemoryRegion *parent, Object *owner,
+                                   AcpiCpuHotplug *gpe_cpu, uint16_t base)
+ {
+diff --git a/hw/acpi/piix4.c b/hw/acpi/piix4.c
+index 17d36bd..6e0db6d 100644
+--- a/hw/acpi/piix4.c
++++ b/hw/acpi/piix4.c
+@@ -427,9 +427,12 @@ static void piix4_device_unplug_cb(HotplugHandler *hotplug_dev,
+     if (s->acpi_memory_hotplug.is_enabled &&
+         object_dynamic_cast(OBJECT(dev), TYPE_PC_DIMM)) {
+         acpi_memory_unplug_cb(&s->acpi_memory_hotplug, dev, errp);
+-    } else if (object_dynamic_cast(OBJECT(dev), TYPE_CPU) &&
+-               !s->cpu_hotplug_legacy) {
+-        acpi_cpu_unplug_cb(&s->cpuhp_state, dev, errp);
++    } else if (object_dynamic_cast(OBJECT(dev), TYPE_CPU)) {
++        if (s->cpu_hotplug_legacy) {
++            legacy_acpi_cpu_unplug_cb(hotplug_dev, &s->gpe_cpu, dev);
++        } else {
++            acpi_cpu_unplug_cb(&s->cpuhp_state, dev, errp);
++        }
+     } else {
+         error_setg(errp, "acpi: device unplug for not supported device"
+                    " type: %s", object_get_typename(OBJECT(dev)));
+diff --git a/hw/i386/pc_piix.c b/hw/i386/pc_piix.c
+index a54a468..367039b 100644
+--- a/hw/i386/pc_piix.c
++++ b/hw/i386/pc_piix.c
+@@ -951,8 +951,11 @@ DEFINE_I440FX_MACHINE(v0_11, "pc-0.11", pc_compat_0_13,
+ 
+ static void pc_i440fx_0_10_machine_options(MachineClass *m)
+ {
++    HotplugHandlerClass *hc = HOTPLUG_HANDLER_CLASS(m);
++
+     pc_i440fx_0_11_machine_options(m);
+     m->hw_version = "0.10";
++    hc->unplug_request = NULL;
+     SET_MACHINE_COMPAT(m, PC_COMPAT_0_10);
+ }
+ 
+diff --git a/include/hw/acpi/cpu_hotplug.h b/include/hw/acpi/cpu_hotplug.h
+index 3b932ab..d781fc9 100644
+--- a/include/hw/acpi/cpu_hotplug.h
++++ b/include/hw/acpi/cpu_hotplug.h
+@@ -27,6 +27,8 @@ typedef struct AcpiCpuHotplug {
+ 
+ void legacy_acpi_cpu_plug_cb(HotplugHandler *hotplug_dev,
+                              AcpiCpuHotplug *g, DeviceState *dev, Error **errp);
++void legacy_acpi_cpu_unplug_cb(HotplugHandler *hotplug_dev,
++                             AcpiCpuHotplug *g, DeviceState *dev);
+ 
+ void legacy_acpi_cpu_hotplug_init(MemoryRegion *parent, Object *owner,
+                                   AcpiCpuHotplug *gpe_cpu, uint16_t base);

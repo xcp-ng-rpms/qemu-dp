@@ -1,0 +1,70 @@
+diff --git a/blockdev.c b/blockdev.c
+index 245e1e1..1c1b42c 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -768,8 +768,11 @@ QemuOptsList qemu_legacy_drive_opts = {
+             .name = "copy-on-read",
+             .type = QEMU_OPT_BOOL,
+             .help = "copy read data from backing file into image file",
++        },{
++            .name = "force-lba",
++            .type = QEMU_OPT_BOOL,
++            .help = "XenServer hack to force lba geometry",
+         },
+-
+         { /* end of list */ }
+     },
+ };
+@@ -789,6 +792,7 @@ DriveInfo *drive_new(QemuOpts *all_opts, BlockInterfaceType block_default_type)
+     const char *werror, *rerror;
+     bool read_only = false;
+     bool copy_on_read;
++    bool force_lba;
+     const char *serial;
+     const char *filename;
+     Error *local_err = NULL;
+@@ -963,6 +967,11 @@ DriveInfo *drive_new(QemuOpts *all_opts, BlockInterfaceType block_default_type)
+         }
+     }
+ 
++    force_lba = qemu_opt_get_bool(legacy_opts, "force-lba", false);
++    if (force_lba) {
++        translation = BIOS_ATA_TRANSLATION_FORCELBA;
++    }
++
+     if (media == MEDIA_CDROM) {
+         if (cyls || secs || heads) {
+             error_report("CHS can't be set with media=cdrom");
+diff --git a/hw/block/hd-geometry.c b/hw/block/hd-geometry.c
+index 57ad501..e4fbe68 100644
+--- a/hw/block/hd-geometry.c
++++ b/hw/block/hd-geometry.c
+@@ -132,7 +132,8 @@ void hd_geometry_guess(BlockBackend *blk,
+         *psecs = geo.sectors;
+         *pheads = geo.heads;
+         translation = BIOS_ATA_TRANSLATION_NONE;
+-    } else if (guess_disk_lchs(blk, &cylinders, &heads, &secs) < 0) {
++    } else if ((ptrans && (*ptrans == BIOS_ATA_TRANSLATION_FORCELBA)) ||
++            guess_disk_lchs(blk, &cylinders, &heads, &secs) < 0) {
+         /* no LCHS guess: use a standard physical disk geometry  */
+         guess_chs_for_size(blk, pcyls, pheads, psecs);
+         translation = hd_bios_chs_auto_trans(*pcyls, *pheads, *psecs);
+diff --git a/qapi/block.json b/qapi/block.json
+index 8e9f590..3e96db5 100644
+--- a/qapi/block.json
++++ b/qapi/block.json
+@@ -34,10 +34,13 @@
+ #         15-head, by proportionally scaling up the number of
+ #         cylinders/head.
+ #
++# @forcelba: Force lba geometry, sectors = 63, heads = 16,
++#            cylinders is set based on the disk size with a max of 16383.
++#
+ # Since: 2.0
+ ##
+ { 'enum': 'BiosAtaTranslation',
+-  'data': ['auto', 'none', 'lba', 'large', 'rechs']}
++  'data': ['auto', 'none', 'lba', 'large', 'rechs', 'forcelba']}
+ 
+ ##
+ # @FloppyDriveType:

@@ -1,0 +1,33 @@
+From 47dd62af8f8ef79a8d669db1b232e20497557a6e Mon Sep 17 00:00:00 2001
+From: Igor Druzhinin <igor.druzhinin@citrix.com>
+Date: Wed, 16 Aug 2017 16:50:51 +0100
+Subject: [PATCH] CA-239469 Avoid bind-listen race on a socket with
+ SO_REUSEADDR
+
+When searching for an unoccupied socket to listen on if bind()
+returns success then it terminates the loop immediately and
+listen() is called. This algorithm works until we set
+SO_REUSEADDR on the socket which makes the kernel postpone
+binding decision until after listen() is called. That can
+lead to a scenario when 2 processes are trying to bind to the
+same port and both succede in bind() call but only 1 fails
+in listen().
+
+As there are currently ongoing attempts to fix it upstream
+we fix it locally for now by disabling SO_REUSEADDR since it's
+unnecessary anyway for our usecase.
+
+Signed-off-by: Igor Druzhinin <igor.druzhinin@citrix.com>
+diff --git a/util/qemu-sockets.c b/util/qemu-sockets.c
+index 1358c81..7c588dd 100644
+--- a/util/qemu-sockets.c
++++ b/util/qemu-sockets.c
+@@ -223,8 +223,6 @@ static int inet_listen_saddr(InetSocketAddress *saddr,
+             continue;
+         }
+ 
+-        socket_set_fast_reuse(slisten);
+-
+         port_min = inet_getport(e);
+         port_max = saddr->has_to ? saddr->to + port_offset : port_min;
+         for (p = port_min; p <= port_max; p++) {

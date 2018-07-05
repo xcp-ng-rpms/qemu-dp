@@ -1,0 +1,98 @@
+From 5c0b41eb81bbfd674447e783c560d1db262a8ca2 Mon Sep 17 00:00:00 2001
+From: Anoob Soman <anoob.soman@citrix.com>
+Date: Wed, 19 Jul 2017 11:52:38 +0100
+Subject: [PATCH 2/3] xen-platform: Provide QMP query commands for XEN PV
+ driver info
+
+query-xen-platform-pv-driver-info QMP command, exposes XEN PV driver
+platform number and build number.
+
+Signed-off-by: Anoob Soman <anoob.soman@citrix.com>
+diff --git a/hw/i386/xen/xen_platform.c b/hw/i386/xen/xen_platform.c
+index b120591..13ce160 100644
+--- a/hw/i386/xen/xen_platform.c
++++ b/hw/i386/xen/xen_platform.c
+@@ -25,9 +25,12 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
++#include "qapi/qmp/types.h"
++#include "qmp-commands.h"
+ #include "hw/hw.h"
+ #include "hw/i386/pc.h"
+ #include "hw/ide.h"
++#include "hw/pci/pci_bus.h"
+ #include "hw/pci/pci.h"
+ #include "hw/irq.h"
+ #include "hw/xen/xen_common.h"
+@@ -156,6 +159,33 @@ static void pci_unplug_disks(PCIBus *bus, uint32_t flags)
+     pci_for_each_device(bus, 0, unplug_disks, &flags);
+ }
+ 
++XenPvDriverInfo* qmp_query_xen_platform_pv_driver_info(Error **errp)
++{
++    PCIBus *bus;
++    PCIDevice *dev;
++    PCIXenPlatformState *s;
++    int devfn;
++
++    bus = pci_find_primary_bus();
++    if (bus) {
++        for(devfn = 0; devfn < ARRAY_SIZE(bus->devices); devfn++) {
++            dev = bus->devices[devfn];
++            if (dev && !strncmp(dev->name, TYPE_XEN_PLATFORM,
++                                strlen(TYPE_XEN_PLATFORM))) {
++                XenPvDriverInfo *info = g_malloc0(sizeof(*info));
++
++                s = XEN_PLATFORM(dev);
++                info->product_num = s->driver_product_version;
++                info->build_num   = s->driver_build_number;
++
++                return info;
++           }
++        }
++    }
++    error_setg(errp, "Could not find %s pci device", TYPE_XEN_PLATFORM);
++    return NULL;
++}
++
+ static void platform_fixed_ioport_writew(void *opaque, uint32_t addr, uint32_t val)
+ {
+     PCIXenPlatformState *s = opaque;
+diff --git a/qapi-schema.json b/qapi-schema.json
+index 250e4dc..4a2c449 100644
+--- a/qapi-schema.json
++++ b/qapi-schema.json
+@@ -6296,3 +6296,32 @@
+ # Since 2.9
+ ##
+ { 'command': 'query-vm-generation-id', 'returns': 'GuidInfo' }
++
++##
++# @XenPvDriverInfo:
++#
++# @product-num: XEN PV driver product number
++# @build-num: XEN PV driver build number
++#
++# Since: X.Y
++##
++{ 'struct': 'XenPvDriverInfo',
++  'data': {'product-num':'int',
++           'build-num':'int'
++          }
++}
++
++##
++# @query-xen-platform-pv-driver-info:
++#
++# Returns: XenPvDriverInfo
++#
++# Since: X.Y
++#
++# Example:
++#
++# -> { "execute": "query-xen-platform-pv-driver-info" }
++# <- { "return": {"product-num": 3, "build-num": 1} }
++#
++##
++{ 'command': 'query-xen-platform-pv-driver-info', 'returns': 'XenPvDriverInfo' }

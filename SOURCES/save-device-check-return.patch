@@ -1,0 +1,22 @@
+migration: Check return value of qemu_fclose
+
+QEMUFile uses buffered IO so when writing small amounts (like the Xen
+device state file), the actual write call and any errors that may occur
+only happen as part of qemu_fclose(). Therefore, report IO errors when
+saving the device state under Xen by checking the return value of
+qemu_fclose().
+
+diff --git a/migration/savevm.c b/migration/savevm.c
+index 5f3bf71..2b27954 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -2216,8 +2216,7 @@ void qmp_xen_save_devices_state(const char *filename, Error **errp)
+     f = qemu_fopen_channel_output(QIO_CHANNEL(ioc));
+     object_unref(OBJECT(ioc));
+     ret = qemu_save_device_state(f);
+-    qemu_fclose(f);
+-    if (ret < 0) {
++    if (ret < 0 || qemu_fclose(f) < 0) {
+         error_setg(errp, QERR_IO_ERROR);
+     }
+ 

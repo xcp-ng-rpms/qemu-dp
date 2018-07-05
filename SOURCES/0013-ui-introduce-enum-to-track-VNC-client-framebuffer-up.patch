@@ -1,0 +1,100 @@
+From fef1bbadfb2c3027208eb3d14b43e1bdb51166ca Mon Sep 17 00:00:00 2001
+From: "Daniel P. Berrange" <berrange@redhat.com>
+Date: Mon, 18 Dec 2017 19:12:21 +0000
+Subject: [PATCH 13/13] ui: introduce enum to track VNC client framebuffer
+ update request state
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Currently the VNC servers tracks whether a client has requested an incremental
+or forced update with two boolean flags. There are only really 3 distinct
+states to track, so create an enum to more accurately reflect permitted states.
+
+Signed-off-by: Daniel P. Berrange <berrange@redhat.com>
+Reviewed-by: Darren Kenny <darren.kenny@oracle.com>
+Reviewed-by: Marc-André Lureau <marcandre.lureau@redhat.com>
+Message-id: 20171218191228.31018-7-berrange@redhat.com
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+diff --git a/ui/vnc.c b/ui/vnc.c
+index 69af011..3a81c2e 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -975,16 +975,17 @@ static int vnc_update_client(VncState *vs, int has_dirty)
+     }
+ 
+     vs->has_dirty += has_dirty;
+-    if (!vs->need_update) {
++    if (vs->update == VNC_STATE_UPDATE_NONE) {
+         return 0;
+     }
+ 
+-    if (vs->output.offset && !vs->audio_cap && !vs->force_update) {
++    if (vs->output.offset && !vs->audio_cap &&
++        vs->update != VNC_STATE_UPDATE_FORCE) {
+         /* kernel send buffers are full -> drop frames to throttle */
+         return 0;
+     }
+ 
+-    if (!vs->has_dirty && !vs->force_update) {
++    if (!vs->has_dirty && vs->update != VNC_STATE_UPDATE_FORCE) {
+         return 0;
+     }
+ 
+@@ -1030,7 +1031,7 @@ static int vnc_update_client(VncState *vs, int has_dirty)
+     }
+ 
+     vnc_job_push(job);
+-    vs->force_update = 0;
++    vs->update = VNC_STATE_UPDATE_INCREMENTAL;
+     vs->has_dirty = 0;
+     return n;
+ }
+@@ -1869,14 +1870,14 @@ static void ext_key_event(VncState *vs, int down,
+ static void framebuffer_update_request(VncState *vs, int incremental,
+                                        int x, int y, int w, int h)
+ {
+-    vs->need_update = 1;
+-
+     if (incremental) {
+-        return;
++        if (vs->update != VNC_STATE_UPDATE_FORCE) {
++            vs->update = VNC_STATE_UPDATE_INCREMENTAL;
++        }
++    } else {
++        vs->update = VNC_STATE_UPDATE_FORCE;
++        vnc_set_area_dirty(vs->dirty, vs->vd, x, y, w, h);
+     }
+-
+-    vs->force_update = 1;
+-    vnc_set_area_dirty(vs->dirty, vs->vd, x, y, w, h);
+ }
+ 
+ static void send_ext_key_event_ack(VncState *vs)
+diff --git a/ui/vnc.h b/ui/vnc.h
+index 694cf32..b9d310e 100644
+--- a/ui/vnc.h
++++ b/ui/vnc.h
+@@ -252,6 +252,12 @@ struct VncJob
+     QTAILQ_ENTRY(VncJob) next;
+ };
+ 
++typedef enum {
++    VNC_STATE_UPDATE_NONE,
++    VNC_STATE_UPDATE_INCREMENTAL,
++    VNC_STATE_UPDATE_FORCE,
++} VncStateUpdate;
++
+ struct VncState
+ {
+     QIOChannelSocket *sioc; /* The underlying socket */
+@@ -264,8 +270,7 @@ struct VncState
+                            * vnc-jobs-async.c */
+ 
+     VncDisplay *vd;
+-    int need_update;
+-    int force_update;
++    VncStateUpdate update; /* Most recent pending request from client */
+     int has_dirty;
+     uint32_t features;
+     int absolute;

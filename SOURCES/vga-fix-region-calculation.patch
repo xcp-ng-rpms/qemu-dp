@@ -1,0 +1,43 @@
+From patchwork Thu Mar  8 07:31:59 2018
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: vga: fix region calculation
+X-Patchwork-Submitter: Gerd Hoffmann <kraxel@redhat.com>
+X-Patchwork-Id: 882986
+Message-Id: <20180308073159.1068-1-kraxel@redhat.com>
+To: qemu-devel@nongnu.org
+Cc: Ross Lagerwall <ross.lagerwall@citrix.com>,
+ Gerd Hoffmann <kraxel@redhat.com>, P J P <ppandit@redhat.com>
+Date: Thu,  8 Mar 2018 08:31:59 +0100
+From: Gerd Hoffmann <kraxel@redhat.com>
+List-Id: <qemu-devel.nongnu.org>
+
+Typically the scanline length and the line offset are identical.  But
+case they are not our calculation for region_end is incorrect.  Using
+line_offset is fine for all scanlines, except the last one where we have
+to use the actual scanline length.
+
+Fixes: CVE-2018-<to-be-filled>
+Cc: P J P <ppandit@redhat.com>
+Cc: Ross Lagerwall <ross.lagerwall@citrix.com>
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+Reviewed-by: Prasad J Pandit <pjp@fedoraproject.org>
+Tested-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+---
+ hw/display/vga.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/hw/display/vga.c b/hw/display/vga.c
+index 28f298b342..72181330b8 100644
+--- a/hw/display/vga.c
++++ b/hw/display/vga.c
+@@ -1483,6 +1483,8 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
+ 
+     region_start = (s->start_addr * 4);
+     region_end = region_start + (ram_addr_t)s->line_offset * height;
++    region_end += width * s->get_bpp(s) / 8; /* scanline length */
++    region_end -= s->line_offset;
+     if (region_end > s->vbe_size) {
+         /* wraps around (can happen with cirrus vbe modes) */
+         region_start = 0;

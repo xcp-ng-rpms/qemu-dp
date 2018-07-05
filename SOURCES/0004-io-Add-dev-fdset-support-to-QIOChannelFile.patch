@@ -1,0 +1,42 @@
+From cdefc0a1e83c54038a6953d988679fb88dd8655f Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Wed, 1 Nov 2017 12:11:42 +0000
+Subject: [PATCH 4/4] io: Add /dev/fdset/ support to QIOChannelFile
+
+Add /dev/fdset/ support to QIOChannelFile by calling qemu_open() instead
+of open() and qemu_close() instead of close(). There is a subtle
+semantic change since qemu_open() automatically sets O_CLOEXEC, but this
+doesn't affect any of the users of the function.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/io/channel-file.c b/io/channel-file.c
+index 1f2f710..db948ab 100644
+--- a/io/channel-file.c
++++ b/io/channel-file.c
+@@ -50,7 +50,7 @@ qio_channel_file_new_path(const char *path,
+ 
+     ioc = QIO_CHANNEL_FILE(object_new(TYPE_QIO_CHANNEL_FILE));
+ 
+-    ioc->fd = open(path, flags, mode);
++    ioc->fd = qemu_open(path, flags, mode);
+     if (ioc->fd < 0) {
+         object_unref(OBJECT(ioc));
+         error_setg_errno(errp, errno,
+@@ -74,7 +74,7 @@ static void qio_channel_file_finalize(Object *obj)
+ {
+     QIOChannelFile *ioc = QIO_CHANNEL_FILE(obj);
+     if (ioc->fd != -1) {
+-        close(ioc->fd);
++        qemu_close(ioc->fd);
+         ioc->fd = -1;
+     }
+ }
+@@ -173,7 +173,7 @@ static int qio_channel_file_close(QIOChannel *ioc,
+ {
+     QIOChannelFile *fioc = QIO_CHANNEL_FILE(ioc);
+ 
+-    if (close(fioc->fd) < 0) {
++    if (qemu_close(fioc->fd) < 0) {
+         error_setg_errno(errp, errno,
+                          "Unable to close file");
+         return -1;

@@ -1,0 +1,22 @@
+pc: Don't set A20 mask when running on Xen
+
+When running on Xen, QEMU doesn't handle the CPU execution context so
+setting the A20 mask serves no purpose. This is required in preparation
+to have QEMU not create any CPU state when running on Xen.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 53d28bb..49f6018 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -620,7 +620,8 @@ static void handle_a20_line_change(void *opaque, int irq, int level)
+ 
+     /* XXX: send to all CPUs ? */
+     /* XXX: add logic to handle multiple A20 line sources */
+-    x86_cpu_set_a20(cpu, level);
++    if (!xen_enabled())
++        x86_cpu_set_a20(cpu, level);
+ }
+ 
+ int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)

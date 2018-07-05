@@ -1,0 +1,13 @@
+diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
+index 93541b4..a020a90 100644
+--- a/hw/xen/xen_backend.c
++++ b/hw/xen/xen_backend.c
+@@ -575,7 +575,7 @@ void xen_be_register_common(void)
+ 
+     xen_be_register("console", &xen_console_ops);
+     xen_be_register("vkbd", &xen_kbdmouse_ops);
+-    xen_be_register("qdisk", &xen_blkdev_ops);
++    /* xen_be_register("qdisk", &xen_blkdev_ops); */
+ #ifdef CONFIG_VIRTFS
+     xen_be_register("9pfs", &xen_9pfs_ops);
+ #endif

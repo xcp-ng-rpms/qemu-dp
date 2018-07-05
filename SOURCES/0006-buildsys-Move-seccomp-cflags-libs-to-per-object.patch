@@ -1,0 +1,47 @@
+From c3883e1f935bf11ef0d2b8157b0022ace3d0e77d Mon Sep 17 00:00:00 2001
+From: Fam Zheng <famz@redhat.com>
+Date: Thu, 7 Sep 2017 16:53:16 +0800
+Subject: [PATCH 6/6] buildsys: Move seccomp cflags/libs to per object
+
+Like many other libraries, libseccomp cflags and libs should only apply
+to the building of necessary objects. Do so in the usual way with the
+help of per object variables.
+
+Signed-off-by: Fam Zheng <famz@redhat.com>
+diff --git a/Makefile.objs b/Makefile.objs
+index 24a4ea0..d9cf7ad 100644
+--- a/Makefile.objs
++++ b/Makefile.objs
+@@ -70,6 +70,8 @@ common-obj-y += backends/
+ common-obj-y += chardev/
+ 
+ common-obj-$(CONFIG_SECCOMP) += qemu-seccomp.o
++qemu-seccomp.o-cflags := $(SECCOMP_CFLAGS)
++qemu-seccomp.o-libs := $(SECCOMP_LIBS)
+ 
+ common-obj-$(CONFIG_FDT) += device_tree.o
+ 
+diff --git a/configure b/configure
+index dd73cce..6fc5787 100755
+--- a/configure
++++ b/configure
+@@ -2047,8 +2047,8 @@ if test "$seccomp" != "no" ; then
+ 
+     if test "$libseccomp_minver" != "" &&
+        $pkg_config --atleast-version=$libseccomp_minver libseccomp ; then
+-        libs_softmmu="$libs_softmmu $($pkg_config --libs libseccomp)"
+-        QEMU_CFLAGS="$QEMU_CFLAGS $($pkg_config --cflags libseccomp)"
++        seccomp_cflags="$($pkg_config --cflags libseccomp)"
++        seccomp_libs="$($pkg_config --libs libseccomp)"
+         seccomp="yes"
+     else
+         if test "$seccomp" = "yes" ; then
+@@ -5870,6 +5870,8 @@ fi
+ 
+ if test "$seccomp" = "yes"; then
+   echo "CONFIG_SECCOMP=y" >> $config_host_mak
++  echo "SECCOMP_CFLAGS=$seccomp_cflags" >> $config_host_mak
++  echo "SECCOMP_LIBS=$seccomp_libs" >> $config_host_mak
+ fi
+ 
+ # XXX: suppress that

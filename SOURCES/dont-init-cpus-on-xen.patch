@@ -1,0 +1,50 @@
+piix: Don't initialize vCPUs running on Xen
+
+When running on Xen, QEMU doesn't handle the CPU execution context so
+initializing the CPUs serves no purpose other than using resources
+(memory + one thread per vCPU).
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+
+diff --git a/cpus.c b/cpus.c
+index c9a6240..471727b 100644
+--- a/cpus.c
++++ b/cpus.c
+@@ -51,6 +51,7 @@
+ #include "hw/nmi.h"
+ #include "sysemu/replay.h"
+ #include "hw/boards.h"
++#include "hw/xen/xen.h"
+ 
+ #ifdef CONFIG_LINUX
+ 
+@@ -1535,6 +1536,9 @@ static void qemu_cpu_kick_thread(CPUState *cpu)
+ 
+ void qemu_cpu_kick(CPUState *cpu)
+ {
++    if (xen_enabled())
++        return;
++
+     qemu_cond_broadcast(cpu->halt_cond);
+     if (tcg_enabled()) {
+         cpu_exit(cpu);
+@@ -1612,6 +1616,9 @@ void pause_all_vcpus(void)
+         qemu_cpu_kick(cpu);
+     }
+ 
++    if (xen_enabled())
++        return;
++
+     if (qemu_in_vcpu_thread()) {
+         cpu_stop_current();
+     }
+@@ -1756,6 +1763,9 @@ static void qemu_dummy_start_vcpu(CPUState *cpu)
+ 
+ void qemu_init_vcpu(CPUState *cpu)
+ {
++    if (xen_enabled())
++        return;
++
+     cpu->nr_cores = smp_cores;
+     cpu->nr_threads = smp_threads;
+     cpu->stopped = true;

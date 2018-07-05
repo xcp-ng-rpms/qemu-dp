@@ -1,0 +1,61 @@
+From 78274917e2e38e234ae891a6ad0408ec06fa845b Mon Sep 17 00:00:00 2001
+From: Anoob Soman <anoob.soman@citrix.com>
+Date: Wed, 19 Jul 2017 12:07:37 +0100
+Subject: [PATCH 3/3] xen-platform: Emit XEN_PLATFORM_PV_DRIVER_INFO after
+ preamble
+
+After drivers writes a four-byte build number to IO port `0x10`, emit
+XEN_PLATFORM_PV_DRIVER_INFO event.
+
+Signed-off-by: Anoob Soman <anoob.soman@citrix.com>
+diff --git a/hw/i386/xen/xen_platform.c b/hw/i386/xen/xen_platform.c
+index 6b6a064..c3f927a 100644
+--- a/hw/i386/xen/xen_platform.c
++++ b/hw/i386/xen/xen_platform.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include "qemu/osdep.h"
++#include "qapi-event.h"
+ #include "qapi/error.h"
+ #include "qapi/qmp/types.h"
+ #include "qmp-commands.h"
+@@ -206,6 +207,9 @@ static void platform_fixed_ioport_writel(void *opaque, uint32_t addr,
+     case 0:
+         /* PV driver version */
+         s->driver_build_number = val;
++        /* End of preamble */
++        qapi_event_send_xen_platform_pv_driver_info(s->driver_product_version,
++                s->driver_build_number, NULL);
+         break;
+     }
+ }
+diff --git a/qapi/event.json b/qapi/event.json
+index 37bf34e..3bcb13e 100644
+--- a/qapi/event.json
++++ b/qapi/event.json
+@@ -387,3 +387,24 @@
+ ##
+ { 'event': 'DUMP_COMPLETED' ,
+   'data': { 'result': 'DumpQueryResult', '*error': 'str' } }
++
++##
++# @XEN_PLATFORM_PV_DRIVER_INFO:
++#
++# Emitted when XEN PV driver write build number to io-port 0x10,
++# marking the end of preamble.
++#
++# @product-num: Product number of XEN PV driver.
++#
++# @build-num: Build number of XEN PV driver.
++#
++# Since: X.Y
++#
++# Example:
++#
++# <- { "event": "XEN_PLATFORM_PV_DRIVER_INFO",
++#      "data": { "product-num": 3, "build-num": 1},
++#      "timestamp": { "seconds": 1500394278, "microseconds": 878290 } }
++##
++{ 'event': 'XEN_PLATFORM_PV_DRIVER_INFO' ,
++  'data': { 'product-num': 'int', 'build-num': 'int' } }

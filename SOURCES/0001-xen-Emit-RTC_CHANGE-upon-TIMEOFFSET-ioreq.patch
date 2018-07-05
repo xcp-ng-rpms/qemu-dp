@@ -1,0 +1,31 @@
+From 0082e904ee976590e4726a71f8a1e5effb241e90 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Mon, 21 Aug 2017 14:55:39 +0100
+Subject: [PATCH] xen: Emit RTC_CHANGE upon TIMEOFFSET ioreq
+
+When the guest writes to the RTC, Xen emulates it and broadcasts a
+TIMEOFFSET ioreq. Emit an RTC_CHANGE QMP message when this happens
+rather than ignoring it so that something useful can be done with the
+information.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/hw/i386/xen/xen-hvm.c b/hw/i386/xen/xen-hvm.c
+index d9ccd5d..ffd20dc 100644
+--- a/hw/i386/xen/xen-hvm.c
++++ b/hw/i386/xen/xen-hvm.c
+@@ -16,6 +16,7 @@
+ #include "hw/i386/apic-msidef.h"
+ #include "hw/xen/xen_common.h"
+ #include "hw/xen/xen_backend.h"
++#include "qapi-event.h"
+ #include "qmp-commands.h"
+ 
+ #include "qemu/error-report.h"
+@@ -967,6 +968,7 @@ static void handle_ioreq(XenIOState *state, ioreq_t *req)
+             handle_vmport_ioreq(state, req);
+             break;
+         case IOREQ_TYPE_TIMEOFFSET:
++            qapi_event_send_rtc_change((int64_t)req->data, &error_abort);
+             break;
+         case IOREQ_TYPE_INVALIDATE:
+             xen_invalidate_map_cache();

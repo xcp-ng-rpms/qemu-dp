@@ -1,0 +1,51 @@
+diff --git a/hw/i386/xen/xen_platform.c b/hw/i386/xen/xen_platform.c
+index d2d2ed5..901ea2a 100644
+--- a/hw/i386/xen/xen_platform.c
++++ b/hw/i386/xen/xen_platform.c
+@@ -66,6 +66,8 @@ typedef struct PCIXenPlatformState {
+     /* Log from guest drivers */
+     char log_buffer[4096];
+     int log_buffer_off;
++
++    uint16_t device_id;
+ } PCIXenPlatformState;
+ 
+ #define TYPE_XEN_PLATFORM "xen-platform"
+@@ -442,6 +444,8 @@ static void xen_platform_realize(PCIDevice *dev, Error **errp)
+ 
+     pci_conf[PCI_INTERRUPT_PIN] = 1;
+ 
++    pci_set_word(pci_conf + PCI_DEVICE_ID, d->device_id);
++
+     platform_ioport_bar_setup(d);
+     pci_register_bar(dev, 0, PCI_BASE_ADDRESS_SPACE_IO, &d->bar);
+ 
+@@ -460,6 +464,12 @@ static void platform_reset(DeviceState *dev)
+     platform_fixed_ioport_reset(s);
+ }
+ 
++static Property xen_platform_props[] = {
++    DEFINE_PROP_UINT16("device-id", PCIXenPlatformState, device_id,
++                       PCI_DEVICE_ID_XEN_PLATFORM),
++    DEFINE_PROP_END_OF_LIST()
++};
++
+ static void xen_platform_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+@@ -467,7 +477,6 @@ static void xen_platform_class_init(ObjectClass *klass, void *data)
+ 
+     k->realize = xen_platform_realize;
+     k->vendor_id = PCI_VENDOR_ID_XEN;
+-    k->device_id = PCI_DEVICE_ID_XEN_PLATFORM;
+     k->class_id = PCI_CLASS_OTHERS << 8 | 0x80;
+     k->subsystem_vendor_id = PCI_VENDOR_ID_XEN;
+     k->subsystem_id = PCI_DEVICE_ID_XEN_PLATFORM;
+@@ -476,6 +485,7 @@ static void xen_platform_class_init(ObjectClass *klass, void *data)
+     dc->desc = "XEN platform pci device";
+     dc->reset = platform_reset;
+     dc->vmsd = &vmstate_xen_platform;
++    dc->props = xen_platform_props;
+ }
+ 
+ static const TypeInfo xen_platform_info = {

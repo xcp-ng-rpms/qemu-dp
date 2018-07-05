@@ -1,0 +1,142 @@
+patch use_existing_io_context
+
+From: Stefano Panella <Stefano.Panella@citrix.com>
+
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index b73a68b..14327b3 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -611,7 +611,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+     struct ioreq *ioreq = opaque;
+     struct XenBlkDev *blkdev = ioreq->blkdev;
+ 
+-    aio_context_acquire(blkdev->ctx);
++    aio_context_acquire(blk_get_aio_context(blkdev->blk));
+ 
+     if (ret != 0) {
+         xen_pv_printf(&blkdev->xendev, 0, "%s I/O error\n",
+@@ -675,7 +675,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+     qemu_bh_schedule(blkdev->bh);
+ 
+ done:
+-    aio_context_release(blkdev->ctx);
++    aio_context_release(blk_get_aio_context(blkdev->blk));
+ }
+ 
+ static bool blk_split_discard(struct ioreq *ioreq, blkif_sector_t sector_number,
+@@ -933,17 +933,17 @@ static void blk_bh(void *opaque)
+ {
+     struct XenBlkDev *blkdev = opaque;
+ 
+-    aio_context_acquire(blkdev->ctx);
++    aio_context_acquire(blk_get_aio_context(blkdev->blk));
+     blk_handle_requests(blkdev);
+-    aio_context_release(blkdev->ctx);
++    aio_context_release(blk_get_aio_context(blkdev->blk));
+ }
+ 
+ static void blk_alloc(struct XenDevice *xendev)
+ {
+     struct XenBlkDev *blkdev = container_of(xendev, struct XenBlkDev, xendev);
+-    Object *obj;
+-    char *name;
+-    Error *err = NULL;
++    /* Object *obj; */
++    /* char *name; */
++    /* Error *err = NULL; */
+ 
+     trace_xen_disk_alloc(xendev->name);
+ 
+@@ -951,20 +951,19 @@ static void blk_alloc(struct XenDevice *xendev)
+     QLIST_INIT(&blkdev->finished);
+     QLIST_INIT(&blkdev->freelist);
+ 
+-    obj = object_new(TYPE_IOTHREAD);
+-    name = g_strdup_printf("iothread-%s", xendev->name);
++    /* obj = object_new(TYPE_IOTHREAD); */
++    /* name = g_strdup_printf("iothread-%s", xendev->name); */
+ 
+-    object_property_add_child(object_get_objects_root(), name, obj, &err);
+-    assert(!err);
++    /* object_property_add_child(object_get_objects_root(), name, obj, &err); */
++    /* assert(!err); */
+ 
+-    g_free(name);
++    /* g_free(name); */
+ 
+-    user_creatable_complete(obj, &err);
+-    assert(!err);
++    /* user_creatable_complete(obj, &err); */
++    /* assert(!err); */
+ 
+-    blkdev->iothread = (IOThread *)object_dynamic_cast(obj, TYPE_IOTHREAD);
+-    blkdev->ctx = iothread_get_aio_context(blkdev->iothread);
+-    blkdev->bh = aio_bh_new(blkdev->ctx, blk_bh, blkdev);
++    /* blkdev->iothread = (IOThread *)object_dynamic_cast(obj, TYPE_IOTHREAD); */
++    /* blkdev->ctx = iothread_get_aio_context(blkdev->iothread); */
+ 
+     if (xen_mode != XEN_EMULATE) {
+         batch_maps = 1;
+@@ -1244,12 +1243,6 @@ static int blk_connect(struct XenDevice *xendev)
+         blkdev->feature_persistent = !!pers;
+     }
+ 
+-
+-    if (blkdev->devicename) {
+-        Error *errp; /* FIXME */
+-        monitor_add_blk(blkdev->blk, strdup(blkdev->devicename), &errp);
+-    }
+-
+     if (!blkdev->xendev.protocol) {
+         blkdev->protocol = BLKIF_PROTOCOL_NATIVE;
+     } else if (strcmp(blkdev->xendev.protocol, XEN_IO_PROTO_ABI_NATIVE) == 0) {
+@@ -1350,7 +1343,8 @@ static int blk_connect(struct XenDevice *xendev)
+         blkdev->persistent_gnt_count = 0;
+     }
+ 
+-    blk_set_aio_context(blkdev->blk, blkdev->ctx);
++    /* blk_set_aio_context(blkdev->blk, blkdev->ctx); */
++    blkdev->bh = aio_bh_new(blk_get_aio_context(blkdev->blk), blk_bh, blkdev);
+ 
+     xen_be_bind_evtchn(&blkdev->xendev);
+ 
+@@ -1368,6 +1362,7 @@ static int blk_connect(struct XenDevice *xendev)
+ static void blk_disconnect(struct XenDevice *xendev)
+ {
+     struct XenBlkDev *blkdev = container_of(xendev, struct XenBlkDev, xendev);
++    AioContext *ctx;
+ 
+     trace_xen_disk_disconnect(xendev->name);
+ 
+@@ -1375,18 +1370,17 @@ static void blk_disconnect(struct XenDevice *xendev)
+     qemu_rec_mutex_lock(&monitor_rec_lock);
+     trace_xen_disk_disconnect_enter(xendev->name);
+ 
+-    aio_context_acquire(blkdev->ctx);
+-
+     if (blkdev->blk) {
+-        blk_set_aio_context(blkdev->blk, qemu_get_aio_context());
++        ctx = blk_get_aio_context(blkdev->blk);
++        aio_context_acquire(ctx);
++        blk_set_aio_context(blkdev->blk, ctx);
+         blk_detach_dev(blkdev->blk, blkdev);
+         blk_unref(blkdev->blk);
+         blkdev->blk = NULL;
++        aio_context_release(ctx);
+     }
+     xen_pv_unbind_evtchn(&blkdev->xendev);
+ 
+-    aio_context_release(blkdev->ctx);
+-
+     if (blkdev->sring) {
+         xengnttab_unmap(blkdev->xendev.gnttabdev, blkdev->sring,
+                         blkdev->nr_ring_ref);
+@@ -1442,7 +1436,7 @@ static int blk_free(struct XenDevice *xendev)
+     g_free(blkdev->dev);
+     g_free(blkdev->devtype);
+     qemu_bh_delete(blkdev->bh);
+-    object_unparent(OBJECT(blkdev->iothread));
++    /* object_unparent(OBJECT(blkdev->iothread)); */
+     return 0;
+ }
+ 

@@ -1,0 +1,19 @@
+CA-285493: Turn on PCI passthrough permissive mode
+
+This is required for some devices to work correctly. Specifically, the
+nvidia-gridd service fails to work correctly when passing through an
+NVIDIA GPU unless permissive mode is turned on.
+
+diff --git a/hw/xen/xen_pt.c b/hw/xen/xen_pt.c
+index aa4f88d..1038a27 100644
+--- a/hw/xen/xen_pt.c
++++ b/hw/xen/xen_pt.c
+@@ -1038,7 +1038,7 @@ static void xen_pt_unregister_device(PCIDevice *d)
+ 
+ static Property xen_pci_passthrough_properties[] = {
+     DEFINE_PROP_PCI_HOST_DEVADDR("hostaddr", XenPCIPassthroughState, hostaddr),
+-    DEFINE_PROP_BOOL("permissive", XenPCIPassthroughState, permissive, false),
++    DEFINE_PROP_BOOL("permissive", XenPCIPassthroughState, permissive, true),
+     DEFINE_PROP_END_OF_LIST(),
+ };
+ 

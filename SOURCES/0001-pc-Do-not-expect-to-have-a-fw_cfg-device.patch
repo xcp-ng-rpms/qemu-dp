@@ -1,0 +1,23 @@
+From 9ae6e18edd4c0adb3ecd32a0611e9a88edd8bf54 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Mon, 3 Jul 2017 13:31:07 +0100
+Subject: [PATCH 1/4] pc: Do not expect to have a fw_cfg device
+
+With some setups, CPU hotplug may be supported without having a fw_cfg
+device. Don't try and use it if it doesn't exist.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 2108104..463351e 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -1895,7 +1895,8 @@ static void pc_cpu_unplug_cb(HotplugHandler *hotplug_dev,
+     pcms->boot_cpus--;
+     /* Update the number of CPUs in CMOS */
+     rtc_set_cpus_count(pcms->rtc, pcms->boot_cpus);
+-    fw_cfg_modify_i16(pcms->fw_cfg, FW_CFG_NB_CPUS, pcms->boot_cpus);
++    if (pcms->fw_cfg)
++        fw_cfg_modify_i16(pcms->fw_cfg, FW_CFG_NB_CPUS, pcms->boot_cpus);
+  out:
+     error_propagate(errp, local_err);
+ }

@@ -1,0 +1,29 @@
+From bb4a434a20cd8b96a0bc660a8f4e327d4a972961 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Wed, 1 Nov 2017 12:13:42 +0000
+Subject: [PATCH 1/4] migration: Don't leak IO channels
+
+Since qemu_fopen_channel_{in,out}put take references on the underlying
+IO channels, make sure to release our references to them.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/migration/savevm.c b/migration/savevm.c
+index fdd15fa..5f3bf71 100644
+--- a/migration/savevm.c
++++ b/migration/savevm.c
+@@ -2214,6 +2214,7 @@ void qmp_xen_save_devices_state(const char *filename, Error **errp)
+     }
+     qio_channel_set_name(QIO_CHANNEL(ioc), "migration-xen-save-state");
+     f = qemu_fopen_channel_output(QIO_CHANNEL(ioc));
++    object_unref(OBJECT(ioc));
+     ret = qemu_save_device_state(f);
+     qemu_fclose(f);
+     if (ret < 0) {
+@@ -2247,6 +2248,7 @@ void qmp_xen_load_devices_state(const char *filename, Error **errp)
+     }
+     qio_channel_set_name(QIO_CHANNEL(ioc), "migration-xen-load-state");
+     f = qemu_fopen_channel_input(QIO_CHANNEL(ioc));
++    object_unref(OBJECT(ioc));
+ 
+     ret = qemu_loadvm_state(f);
+     qemu_fclose(f);

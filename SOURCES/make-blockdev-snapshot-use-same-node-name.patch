@@ -1,0 +1,76 @@
+patch make-blockdev-snapshot-use-same-node-name.patch
+
+From: Stefano Panella <Stefano.Panella@citrix.com>
+
+diff --git a/block.c b/block.c
+index 3308814..2d914a0 100644
+--- a/block.c
++++ b/block.c
+@@ -1051,9 +1051,9 @@ static void update_options_from_flags(QDict *options, int flags)
+     }
+ }
+ 
+-static void bdrv_assign_node_name(BlockDriverState *bs,
+-                                  const char *node_name,
+-                                  Error **errp)
++void bdrv_assign_node_name(BlockDriverState *bs,
++                           const char *node_name,
++                           Error **errp)
+ {
+     char *gen_node_name = NULL;
+ 
+@@ -3625,8 +3625,7 @@ BlockDriverState *bdrv_find_node(const char *node_name)
+     BlockDriverState *bs;
+ 
+     assert(node_name);
+-
+-    QTAILQ_FOREACH(bs, &graph_bdrv_states, node_list) {
++    QTAILQ_FOREACH(bs, &graph_bdrv_states, node_list){
+         if (!strcmp(node_name, bs->node_name)) {
+             return bs;
+         }
+diff --git a/blockdev.c b/blockdev.c
+index d3e946a..22fc540 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -54,6 +54,7 @@
+ #include "qemu/cutils.h"
+ #include "qemu/help_option.h"
+ #include "qemu/throttle-options.h"
++#include "qemu/id.h"
+ 
+ static QTAILQ_HEAD(, BlockDriverState) monitor_bdrv_states =
+     QTAILQ_HEAD_INITIALIZER(monitor_bdrv_states);
+@@ -1630,6 +1631,7 @@ static void external_snapshot_prepare(BlkActionState *common,
+     /* Device and node name of the image to generate the snapshot from */
+     const char *device;
+     const char *node_name;
++    char old_node_name[256];
+     /* Reference to the new image (for 'blockdev-snapshot') */
+     const char *snapshot_ref;
+     /* File name of the new image (for 'blockdev-snapshot-sync') */
+@@ -1749,6 +1751,12 @@ static void external_snapshot_prepare(BlkActionState *common,
+ 
+     state->new_bs = bdrv_open(new_image_file, snapshot_ref, options, flags,
+                               errp);
++
++    /* Make sure the old overlay node_name is transferred to new overlay */
++    pstrcpy(old_node_name, sizeof(state->old_bs->node_name), state->old_bs->node_name);
++    bdrv_assign_node_name(state->old_bs, NULL, NULL);
++    bdrv_assign_node_name(state->new_bs, old_node_name, NULL);
++
+     /* We will manually add the backing_hd field to the bs later */
+     if (!state->new_bs) {
+         return;
+diff --git a/include/block/block.h b/include/block/block.h
+index ab80195..4ca3bd3 100644
+--- a/include/block/block.h
++++ b/include/block/block.h
+@@ -623,4 +623,7 @@ void bdrv_del_child(BlockDriverState *parent, BdrvChild *child, Error **errp);
+ bool bdrv_can_store_new_dirty_bitmap(BlockDriverState *bs, const char *name,
+                                      uint32_t granularity, Error **errp);
+ 
++void bdrv_assign_node_name(BlockDriverState *bs,
++                           const char *node_name,
++                           Error **errp);
+ #endif

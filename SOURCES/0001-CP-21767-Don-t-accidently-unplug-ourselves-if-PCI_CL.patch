@@ -1,0 +1,27 @@
+From 0aaa764b1e3fd7d8816678e3b960199e5595b3eb Mon Sep 17 00:00:00 2001
+From: Igor Druzhinin <igor.druzhinin@citrix.com>
+Date: Fri, 7 Apr 2017 20:31:50 +0100
+Subject: [PATCH] CP-21767 Don't accidently unplug ourselves if
+ PCI_CLASS_DEVICE is 0x0100
+
+Due to some wild legacy reasons we have to set 0x0100 as a PCI class ID
+for Xen Platform device which is a PCI class ID of SCSI Storage
+Controller. During Linux kernel initialization all the PV and emulated
+SCSI controllers are unplugged which leads to the accidental unplug of
+Xen Platform device itself.
+
+Signed-off-by: Igor Druzhinin <igor.druzhinin@citrix.com>
+diff --git a/hw/i386/xen/xen_platform.c b/hw/i386/xen/xen_platform.c
+index 9205f01..8daf46a 100644
+--- a/hw/i386/xen/xen_platform.c
++++ b/hw/i386/xen/xen_platform.c
+@@ -154,7 +154,8 @@ static void unplug_disks(PCIBus *b, PCIDevice *d, void *opaque)
+         !(flags & UNPLUG_IDE_SCSI_DISKS);
+ 
+     /* We have to ignore passthrough devices */
+-    if (!strcmp(d->name, "xen-pci-passthrough")) {
++    if (!strcmp(d->name, "xen-pci-passthrough") ||
++            !strcmp(d->name, "xen-platform")) {
+         return;
+     }
+ 

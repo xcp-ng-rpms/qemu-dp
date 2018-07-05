@@ -1,0 +1,358 @@
+From bd478cbdd904bbb3d6d63add81d9138b0bad266b Mon Sep 17 00:00:00 2001
+From: Liang Dai <liang.dai1@citrix.com>
+Date: Wed, 16 Aug 2017 22:00:37 +0800
+Subject: [PATCH] CP-23753: Talk to new clipboard daemon
+
+Signed-off-by: Liang Dai <liang.dai1@citrix.com>
+---
+ include/ui/console.h |   2 +
+ qemu-options.hx      |   3 +
+ ui/vnc.c             | 193 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ ui/vnc.h             |  22 ++++++
+ vl.c                 |   6 ++
+ 5 files changed, 226 insertions(+)
+
+diff --git a/include/ui/console.h b/include/ui/console.h
+index e2589e2..3564442 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -458,10 +458,12 @@ static inline void cocoa_display_init(DisplayState *ds, int full_screen)
+ void vnc_display_init(const char *id);
+ void vnc_display_open(const char *id, Error **errp);
+ void vnc_display_add_client(const char *id, int csock, bool skipauth);
++void vnc_clipboard_init(Error **errp);
+ #ifdef CONFIG_VNC
+ int vnc_display_password(const char *id, const char *password);
+ int vnc_display_pw_expire(const char *id, time_t expires);
+ QemuOpts *vnc_parse(const char *str, Error **errp);
++bool vnc_clipboard_parse(const char *str);
+ int vnc_init_func(void *opaque, QemuOpts *opts, Error **errp);
+ #else
+ static inline int vnc_display_password(const char *id, const char *password)
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 894ec5c..e431df5 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -1505,6 +1505,9 @@ STEXI
+ @table @option
+ ETEXI
+ 
++DEF("vnc-clipboard-socket-fd", HAS_ARG, QEMU_OPTION_vnc_clipboard_socket_fd,
++    "-vnc-clipboard-socket-fd fd   specify the vnc clipboard socket fd\n", QEMU_ARCH_ALL)
++
+ DEF("win2k-hack", 0, QEMU_OPTION_win2k_hack,
+     "-win2k-hack     use it when installing Windows 2000 to avoid a disk full bug\n",
+     QEMU_ARCH_I386)
+diff --git a/ui/vnc.c b/ui/vnc.c
+index 2c28a59..9e7ab5a 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -55,6 +55,9 @@ static const struct timeval VNC_REFRESH_LOSSY = { 2, 0 };
+ #include "vnc_keysym.h"
+ #include "crypto/cipher.h"
+ 
++static int vnc_clipboard_socket_fd = -1;
++static VncClipboardState *vnc_clipboard_state;
++
+ static QTAILQ_HEAD(, VncDisplay) vnc_displays =
+     QTAILQ_HEAD_INITIALIZER(vnc_displays);
+ 
+@@ -1585,8 +1588,68 @@ uint32_t read_u32(uint8_t *data, size_t offset)
+             (data[offset + 2] << 8) | data[offset + 3]);
+ }
+ 
++static int qio_channel_write_all(QIOChannel *ioc, const void *buf,
++                                 size_t len, Error **errp)
++{
++    size_t ret, pos = 0;
++
++    while (pos < len) {
++        ret = qio_channel_write(ioc, buf + pos, len - pos, errp);
++        if (ret > 0) {
++            pos += ret;
++        } else {
++            return ret;
++        }
++    }
++    return pos;
++}
++
+ static void client_cut_text(VncState *vs, size_t len, uint8_t *text)
+ {
++    Error *err = NULL;
++
++    if (vnc_clipboard_state && vnc_clipboard_state->ioc) {
++        if (qio_channel_write_all(vnc_clipboard_state->ioc, (const char *)&len,
++                                  VNC_CLIPBOARD_DATA_HEADER_LEN, &err) !=
++            VNC_CLIPBOARD_DATA_HEADER_LEN) {
++            goto failure;
++        }
++
++        if (qio_channel_write_all(vnc_clipboard_state->ioc,
++                                  (const char *)text, len, &err) != len) {
++            goto failure;
++        }
++    }
++    return;
++
++failure:
++    error_reportf_err(err, "Failed to send client_cut_text: ");
++    vnc_clipboard_disconnect(vnc_clipboard_state);
++}
++
++static void vnc_set_clipboard(VncState *vs, const uint8_t *buf,
++                              unsigned int len)
++{
++    char pad[3] = { 0, 0, 0 };
++
++    vnc_write_u8(vs, VNC_MSG_SERVER_CUT_TEXT); /* ServerCutText */
++    vnc_write(vs, pad, 3);   /* padding */
++    vnc_write_u32(vs, len);  /* length */
++    vnc_write(vs, buf, len); /* data */
++    vnc_flush(vs);
++}
++
++void vnc_dpy_set_clipboard(const uint8_t *buf, unsigned int len)
++{
++    VncDisplay *vd;
++
++    QTAILQ_FOREACH(vd, &vnc_displays, next) {
++        VncState *vs;
++
++        QTAILQ_FOREACH(vs, &vd->clients, next) {
++            vnc_set_clipboard(vs, buf, len);
++        }
++    }
+ }
+ 
+ static void check_pointer_type_change(Notifier *notifier, void *data)
+@@ -3888,6 +3951,129 @@ QemuOpts *vnc_parse(const char *str, Error **errp)
+     return opts;
+ }
+ 
++bool vnc_clipboard_parse(const char *str)
++{
++    if (!sscanf(str, "%d", &vnc_clipboard_socket_fd) ||
++        vnc_clipboard_socket_fd < 0) {
++        return false;
++    }
++
++    return true;
++}
++
++void vnc_clipboard_disconnect(VncClipboardState *vcs)
++{
++    Error *err = NULL;
++
++    if (vcs->ioc_tag) {
++        g_source_remove(vcs->ioc_tag);
++    }
++    if (qio_channel_close(vcs->ioc, &err) < 0) {
++        error_reportf_err(err, "Failed to close vnc clipboard socket: ");
++    }
++    buffer_free(&vcs->input);
++    object_unref(OBJECT(vcs->ioc));
++    object_unref(OBJECT(vcs->sioc));
++    g_free(vcs);
++    vnc_clipboard_state = NULL;
++}
++
++static int vnc_clipboard_process(VncClipboardState *vcs, uint8_t *data,
++                                 size_t len)
++{
++    static uint32_t dlen;
++    if (len == VNC_CLIPBOARD_DATA_HEADER_LEN) {
++        memcpy(&dlen, data, sizeof(dlen));
++        if (dlen > 0) {
++            return VNC_CLIPBOARD_DATA_HEADER_LEN + dlen;
++        }
++    }
++
++    /* here is all clipboard data send to vnc client */
++    vnc_dpy_set_clipboard(data + VNC_CLIPBOARD_DATA_HEADER_LEN, dlen);
++
++    vcs->read_handler_expect = VNC_CLIPBOARD_DATA_HEADER_LEN;
++    return 0;
++}
++
++static ssize_t vnc_clipboard_read(VncClipboardState *vcs)
++{
++    ssize_t ret;
++    Error *err = NULL;
++
++    buffer_reserve(&vcs->input, 4096);
++    ret = qio_channel_read(vcs->ioc, (char *)(buffer_end(&vcs->input)),
++                           4096, &err);
++
++    if (ret < 0) {
++        vcs->disconnecting = TRUE;
++
++        error_reportf_err(err, "Failed to read vnc clipboard data: ");
++        return 0;
++    }
++
++    vcs->input.offset += ret;
++    return ret;
++}
++
++/* Event loop functions */
++gboolean vnc_clipboard_client_io(QIOChannel *ioc,
++                                 GIOCondition condition,
++                                 void *opaque)
++{
++    ssize_t ret;
++    VncClipboardState *vcs = opaque;
++
++    if (condition & G_IO_IN) {
++        ret = vnc_clipboard_read(vcs);
++        if (!ret) {
++            if (vcs->disconnecting) {
++                vnc_clipboard_disconnect(vcs);
++                return FALSE;
++            }
++            return TRUE;
++        }
++
++        while (vcs->input.offset >= vcs->read_handler_expect) {
++            size_t len = vcs->read_handler_expect;
++
++            ret = vnc_clipboard_process(vcs, vcs->input.buffer, len);
++            if (vcs->disconnecting) {
++                vnc_clipboard_disconnect(vcs);
++                return FALSE;
++            }
++            if (!ret) {
++                buffer_advance(&vcs->input, len);
++            } else {
++                vcs->read_handler_expect = ret;
++            }
++        }
++    }
++    return TRUE;
++}
++
++void vnc_clipboard_init(Error **errp)
++{
++    VncClipboardState *vcs;
++    QIOChannelSocket *sioc = qio_channel_socket_new_fd(vnc_clipboard_socket_fd,
++                                                       errp);
++
++    if (!sioc) {
++        return;
++    }
++
++    vcs = g_new0(VncClipboardState, 1);
++    vcs->sioc = sioc;
++    vcs->ioc = QIO_CHANNEL(sioc);
++    object_ref(OBJECT(vcs->ioc));
++    vcs->read_handler_expect = VNC_CLIPBOARD_DATA_HEADER_LEN;
++
++    vnc_clipboard_state = vcs;
++    vcs->ioc_tag = qio_channel_add_watch(vcs->ioc, G_IO_IN,
++                                         vnc_clipboard_client_io,
++                                         vcs, NULL);
++}
++
+ int vnc_init_func(void *opaque, QemuOpts *opts, Error **errp)
+ {
+     Error *local_err = NULL;
+@@ -3900,6 +4086,13 @@ int vnc_init_func(void *opaque, QemuOpts *opts, Error **errp)
+         error_reportf_err(local_err, "Failed to start VNC server: ");
+         exit(1);
+     }
++    if (vnc_clipboard_socket_fd >= 0) {
++        vnc_clipboard_init(&local_err);
++        if (local_err != NULL) {
++            error_reportf_err(local_err, "Failed to start VNC clipboard: ");
++            exit(1);
++        }
++    }
+     return 0;
+ }
+ 
+diff --git a/ui/vnc.h b/ui/vnc.h
+index d20b154..df9e6fc 100644
+--- a/ui/vnc.h
++++ b/ui/vnc.h
+@@ -62,6 +62,7 @@ typedef struct VncState VncState;
+ typedef struct VncJob VncJob;
+ typedef struct VncRect VncRect;
+ typedef struct VncRectEntry VncRectEntry;
++typedef struct VncClipboardState VncClipboardState;
+ 
+ typedef int VncReadEvent(VncState *vs, uint8_t *data, size_t len);
+ 
+@@ -73,6 +74,9 @@ typedef void VncSendHextileTile(VncState *vs,
+                                 void *last_fg,
+                                 int *has_bg, int *has_fg);
+ 
++typedef int VncClipboardReadEvent(VncClipboardState *vs,
++                                  uint8_t *data, size_t len);
++
+ /* VNC_DIRTY_PIXELS_PER_BIT is the number of dirty pixels represented
+  * by one bit in the dirty bitmap, should be a power of 2 */
+ #define VNC_DIRTY_PIXELS_PER_BIT 16
+@@ -95,6 +99,8 @@ typedef void VncSendHextileTile(VncState *vs,
+ 
+ #define VNC_AUTH_CHALLENGE_SIZE 16
+ 
++#define VNC_CLIPBOARD_DATA_HEADER_LEN 4
++
+ typedef struct VncDisplay VncDisplay;
+ 
+ #include "vnc-auth-vencrypt.h"
+@@ -325,6 +331,14 @@ struct VncState
+     QTAILQ_ENTRY(VncState) next;
+ };
+ 
++struct VncClipboardState {
++    QIOChannelSocket *sioc;     /* The underlying socket */
++    QIOChannel *ioc;            /* The channel currently used for I/O */
++    guint ioc_tag;
++    gboolean disconnecting;
++    size_t read_handler_expect;
++    Buffer input;
++};
+ 
+ /*****************************************************************************
+  *
+@@ -517,6 +531,12 @@ void vnc_read_when(VncState *vs, VncReadEvent *func, size_t expecting);
+ void vnc_disconnect_finish(VncState *vs);
+ void vnc_start_protocol(VncState *vs);
+ 
++/* Clipboard related */
++gboolean vnc_clipboard_client_io(QIOChannel *ioc,
++                       GIOCondition condition,
++                       void *opaque);
++
++void vnc_clipboard_disconnect(VncClipboardState *vcs);
+ 
+ /* Buffer I/O functions */
+ uint32_t read_u32(uint8_t *data, size_t offset);
+@@ -574,4 +594,6 @@ int vnc_zrle_send_framebuffer_update(VncState *vs, int x, int y, int w, int h);
+ int vnc_zywrle_send_framebuffer_update(VncState *vs, int x, int y, int w, int h);
+ void vnc_zrle_clear(VncState *vs);
+ 
++void vnc_dpy_set_clipboard(const uint8_t *buf, unsigned int len);
++
+ #endif /* QEMU_VNC_H */
+diff --git a/vl.c b/vl.c
+index 92afb82..cfd482a 100644
+--- a/vl.c
++++ b/vl.c
+@@ -3784,6 +3784,12 @@ int main(int argc, char **argv, char **envp)
+             case QEMU_OPTION_vnc:
+                 vnc_parse(optarg, &error_fatal);
+                 break;
++            case QEMU_OPTION_vnc_clipboard_socket_fd:
++                if (!vnc_clipboard_parse(optarg)) {
++                    error_report("invalid argument");
++                    exit(1);
++                }
++                break;
+             case QEMU_OPTION_no_acpi:
+                 acpi_enabled = 0;
+                 break;
+-- 
+2.7.4
+

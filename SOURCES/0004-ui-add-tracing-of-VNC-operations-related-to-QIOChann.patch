@@ -1,0 +1,140 @@
+From ad6374c43e572e6e53020a97e72e9ea525b08334 Mon Sep 17 00:00:00 2001
+From: "Daniel P. Berrange" <berrange@redhat.com>
+Date: Thu, 21 Sep 2017 13:15:27 +0100
+Subject: [PATCH 4/4] ui: add tracing of VNC operations related to QIOChannel
+
+Trace anything which opens/closes/wraps a QIOChannel in the
+VNC server.
+
+Signed-off-by: Daniel P. Berrange <berrange@redhat.com>
+Message-id: 20170921121528.23935-2-berrange@redhat.com
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+diff --git a/ui/trace-events b/ui/trace-events
+index 34c2213..e4c02e4 100644
+--- a/ui/trace-events
++++ b/ui/trace-events
+@@ -29,6 +29,12 @@ vnc_key_event_ext(bool down, int sym, int keycode, const char *name) "down %d, s
+ vnc_key_event_map(bool down, int sym, int keycode, const char *name) "down %d, sym 0x%x -> keycode 0x%x [%s]"
+ vnc_key_sync_numlock(bool on) "%d"
+ vnc_key_sync_capslock(bool on) "%d"
++vnc_client_eof(void *state, void *ioc) "VNC client EOF state=%p ioc=%p"
++vnc_client_io_error(void *state, void *ioc, const char *msg) "VNC client I/O error state=%p ioc=%p errmsg=%s"
++vnc_client_connect(void *state, void *ioc) "VNC client connect state=%p ioc=%p"
++vnc_client_disconnect_start(void *state, void *ioc) "VNC client disconnect start state=%p ioc=%p"
++vnc_client_disconnect_finish(void *state, void *ioc) "VNC client disconnect finish state=%p ioc=%p"
++vnc_client_io_wrap(void *state, void *ioc, const char *type) "VNC client I/O wrap state=%p ioc=%p type=%s"
+ 
+ # ui/input.c
+ input_event_key_number(int conidx, int number, const char *qcode, bool down) "con %d, key number 0x%x [%s], down %d"
+diff --git a/ui/vnc-auth-vencrypt.c b/ui/vnc-auth-vencrypt.c
+index ffaab57..8ab00ef 100644
+--- a/ui/vnc-auth-vencrypt.c
++++ b/ui/vnc-auth-vencrypt.c
+@@ -28,6 +28,7 @@
+ #include "vnc.h"
+ #include "qapi/error.h"
+ #include "qemu/main-loop.h"
++#include "trace.h"
+ 
+ static void start_auth_vencrypt_subauth(VncState *vs)
+ {
+@@ -121,6 +122,7 @@ static int protocol_client_vencrypt_auth(VncState *vs, uint8_t *data, size_t len
+         VNC_DEBUG("Start TLS VeNCrypt handshake process\n");
+         object_unref(OBJECT(vs->ioc));
+         vs->ioc = QIO_CHANNEL(tls);
++        trace_vnc_client_io_wrap(vs, vs->ioc, "tls");
+         vs->tls = qio_channel_tls_get_session(tls);
+ 
+         qio_channel_tls_handshake(tls,
+diff --git a/ui/vnc-ws.c b/ui/vnc-ws.c
+index f530cd5..aeaafe2 100644
+--- a/ui/vnc-ws.c
++++ b/ui/vnc-ws.c
+@@ -23,6 +23,7 @@
+ #include "vnc.h"
+ #include "io/channel-websock.h"
+ #include "qemu/bswap.h"
++#include "trace.h"
+ 
+ static void vncws_tls_handshake_done(QIOTask *task,
+                                      gpointer user_data)
+@@ -50,7 +51,6 @@ gboolean vncws_tls_handshake_io(QIOChannel *ioc G_GNUC_UNUSED,
+     QIOChannelTLS *tls;
+     Error *err = NULL;
+ 
+-    VNC_DEBUG("TLS Websocket connection required\n");
+     if (vs->ioc_tag) {
+         g_source_remove(vs->ioc_tag);
+         vs->ioc_tag = 0;
+@@ -70,9 +70,9 @@ gboolean vncws_tls_handshake_io(QIOChannel *ioc G_GNUC_UNUSED,
+ 
+     qio_channel_set_name(QIO_CHANNEL(tls), "vnc-ws-server-tls");
+ 
+-    VNC_DEBUG("Start TLS WS handshake process\n");
+     object_unref(OBJECT(vs->ioc));
+     vs->ioc = QIO_CHANNEL(tls);
++    trace_vnc_client_io_wrap(vs, vs->ioc, "tls");
+     vs->tls = qio_channel_tls_get_session(tls);
+ 
+     qio_channel_tls_handshake(tls,
+@@ -110,7 +110,6 @@ gboolean vncws_handshake_io(QIOChannel *ioc G_GNUC_UNUSED,
+     VncState *vs = opaque;
+     QIOChannelWebsock *wioc;
+ 
+-    VNC_DEBUG("Websocket negotiate starting\n");
+     if (vs->ioc_tag) {
+         g_source_remove(vs->ioc_tag);
+         vs->ioc_tag = 0;
+@@ -121,6 +120,7 @@ gboolean vncws_handshake_io(QIOChannel *ioc G_GNUC_UNUSED,
+ 
+     object_unref(OBJECT(vs->ioc));
+     vs->ioc = QIO_CHANNEL(wioc);
++    trace_vnc_client_io_wrap(vs, vs->ioc, "websock");
+ 
+     qio_channel_websock_handshake(wioc,
+                                   vncws_handshake_done,
+diff --git a/ui/vnc.c b/ui/vnc.c
+index fd43f9b..6a9d26e 100644
+--- a/ui/vnc.c
++++ b/ui/vnc.c
+@@ -1118,6 +1118,7 @@ static void vnc_disconnect_start(VncState *vs)
+     if (vs->disconnecting) {
+         return;
+     }
++    trace_vnc_client_disconnect_start(vs, vs->ioc);
+     vnc_set_share_mode(vs, VNC_SHARE_MODE_DISCONNECTED);
+     if (vs->ioc_tag) {
+         g_source_remove(vs->ioc_tag);
+@@ -1130,6 +1131,8 @@ void vnc_disconnect_finish(VncState *vs)
+ {
+     int i;
+ 
++    trace_vnc_client_disconnect_finish(vs, vs->ioc);
++
+     vnc_jobs_join(vs); /* Wait encoding jobs */
+ 
+     vnc_lock_output(vs);
+@@ -1183,11 +1186,12 @@ ssize_t vnc_client_io_error(VncState *vs, ssize_t ret, Error **errp)
+ {
+     if (ret <= 0) {
+         if (ret == 0) {
+-            VNC_DEBUG("Closing down client sock: EOF\n");
++            trace_vnc_client_eof(vs, vs->ioc);
+             vnc_disconnect_start(vs);
+         } else if (ret != QIO_CHANNEL_ERR_BLOCK) {
+-            VNC_DEBUG("Closing down client sock: ret %zd (%s)\n",
+-                      ret, errp ? error_get_pretty(*errp) : "Unknown");
++            trace_vnc_client_io_error(vs, vs->ioc,
++                                      errp ? error_get_pretty(*errp) :
++                                      "Unknown");
+             vnc_disconnect_start(vs);
+         }
+ 
+@@ -2884,6 +2888,7 @@ static void vnc_connect(VncDisplay *vd, QIOChannelSocket *sioc,
+     bool first_client = QTAILQ_EMPTY(&vd->clients);
+     int i;
+ 
++    trace_vnc_client_connect(vs, sioc);
+     vs->sioc = sioc;
+     object_ref(OBJECT(vs->sioc));
+     vs->ioc = QIO_CHANNEL(sioc);
