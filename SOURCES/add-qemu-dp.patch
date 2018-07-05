@@ -45,7 +45,7 @@ index 81447b1..a261c12 100644
  
  ######################################################################
  
-@@ -376,6 +387,25 @@ qemu-img.o: qemu-img-cmds.h
+@@ -376,6 +387,27 @@ qemu-img.o: qemu-img-cmds.h
  qemu-img$(EXESUF): qemu-img.o $(block-obj-y) $(crypto-obj-y) $(io-obj-y) $(qom-obj-y) $(COMMON_LDADDS)
  qemu-nbd$(EXESUF): qemu-nbd.o $(block-obj-y) $(crypto-obj-y) $(io-obj-y) $(qom-obj-y) $(COMMON_LDADDS)
  qemu-io$(EXESUF): qemu-io.o $(block-obj-y) $(crypto-obj-y) $(io-obj-y) $(qom-obj-y) $(COMMON_LDADDS)
@@ -64,6 +64,8 @@ index 81447b1..a261c12 100644
 +    libqemuqom.a \
 +    libqemuutildp.a \
 +    libqemucrypto.a \
++    stubs/crypto.o \
++    block/rbd.o \
 +    libqemustub.a
 +qemu-dp$(EXESUF): LIBS = -lglib-2.0 -lz -laio -lxenevtchn -lxengnttab -lxenstore -lxenctrl -lxenforeignmemory
 +
