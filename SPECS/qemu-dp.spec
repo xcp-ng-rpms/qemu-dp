@@ -98,10 +98,15 @@ Patch87: make-blockdev-snapshot-use-same-node-name.patch
 Patch88: use_existing_io_context.patch
 Patch89: use_libaio_by_default.patch
 Patch90: Use_the_legacy_grant_copy_ioctl
+
+# XCP-ng patches
+Patch1000: qemu-dp-2.10.2-add-rbd-support.XCP-ng.patch
+
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel
+BuildRequires: librbd1-devel
 
 %description
 This package contains Qemu.
@@ -137,6 +142,9 @@ rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_
 %{_libdir}/qemu-dp/bin
 
 %changelog
+* Thu Jul 05 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.1
+- Enable support of Ceph RBD
+
 * Tue Apr 24 2018 marksy <mark.syms@citrix.com> - 2.10.2-1.2.0
 - CA-288288: Avoid built-in QEMU crypto
 
