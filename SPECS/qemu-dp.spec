@@ -1,8 +1,13 @@
+# XCP-ng: release suffix for 'extras' section
+%if "%{?xcp_ng_section}" == "extras"
+%define rel_suffix .extras
+%endif
+
 Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.10.2
-Release: 1.2.0
+Release: 1.2.0%{?rel_suffix}
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
@@ -100,13 +105,18 @@ Patch89: use_libaio_by_default.patch
 Patch90: Use_the_legacy_grant_copy_ioctl
 
 # XCP-ng patches
+%if "%{?xcp_ng_section}" == "extras"
 Patch1000: qemu-dp-2.10.2-add-rbd-support.XCP-ng.patch
+%endif
 
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel
+
+%if "%{?xcp_ng_section}" == "extras"
 BuildRequires: librbd1-devel
+%endif
 
 %description
 This package contains Qemu.
