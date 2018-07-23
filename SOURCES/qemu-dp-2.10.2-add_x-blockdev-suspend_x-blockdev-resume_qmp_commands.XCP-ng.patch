@@ -1,0 +1,83 @@
+diff --git a/qapi/block.json b/qapi/block.json
+index 22470e7..ceed7d6 100644
+--- a/qapi/block.json
++++ b/qapi/block.json
+@@ -300,3 +300,25 @@
+ ##
+ { 'command': 'xen-watch-device',
+   'data': { 'domid': 'int', 'devid': 'int', 'type': 'str', 'blocknode': 'str', 'devicename': 'str' } }
++
++##
++# @x-blockdev-suspend:
++#
++# Suspend blockdev
++#
++# @device: The device name or node name of the node to be suspended
++#
++##
++{ 'command': 'x-blockdev-suspend',
++'data': {'device': 'str'} }
++
++##
++# @x-blockdev-resume:
++#
++# Resume blockdev
++#
++# @device: The device name or node name of the node to be resumed
++#
++##
++{ 'command': 'x-blockdev-resume',
++'data': {'device': 'str'} }
+
+diff --git a/blockdev.c b/blockdev.c
+index 22fc540..d50e401 100644
+--- a/blockdev.c
++++ b/blockdev.c
+@@ -4042,6 +4042,47 @@ void qmp_x_blockdev_change(const char *parent, bool has_child,
+     }
+ }
+ 
++void qmp_x_blockdev_suspend(const char *device, Error **errp)
++{
++    BlockDriverState *bs = NULL;
++
++    bs = bdrv_lookup_bs(device, device, errp);
++    if (!bs) {
++        return;
++    }
++
++     while(bs->file) {
++         bs = bs->file->bs;
++     }
++
++    bdrv_drained_begin(bs); /* complete I/O */
++    bdrv_flush(bs);
++    bdrv_drain(bs); /* in case flush left pending I/O */
++
++    if (bs->drv) {
++        bs->drv->bdrv_close(bs);
++    }
++}
++
++void qmp_x_blockdev_resume(const char *device, Error **errp)
++{
++    BlockDriverState *bs = NULL;
++
++    bs = bdrv_lookup_bs(device, device, errp);
++    if (!bs) {
++        return;
++    }
++
++     while(bs->file) {
++         bs = bs->file->bs;
++     }
++
++    bs->drv->bdrv_file_open(bs, bs->options, bs->open_flags, errp);
++
++    bdrv_drained_end(bs);
++
++}
++
+ BlockJobInfoList *qmp_query_block_jobs(Error **errp)
+ {
+     BlockJobInfoList *head = NULL, **p_next = &head;

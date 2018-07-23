@@ -101,6 +101,7 @@ Patch90: Use_the_legacy_grant_copy_ioctl
 
 # XCP-ng patches
 Patch1000: qemu-dp-2.10.2-add-rbd-support.XCP-ng.patch
+Patch1001: qemu-dp-2.10.2-add_x-blockdev-suspend_x-blockdev-resume_qmp_commands.XCP-ng.patch
 
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
@@ -142,7 +143,10 @@ rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_
 %{_libdir}/qemu-dp/bin
 
 %changelog
-* Thu Jul 05 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.1
+* Thu Jul 21 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.0
+- Add new QMP commands x-blockdev-suspend and x-blockdev-resume
+
+* Thu Jul 05 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.0
 - Enable support of Ceph RBD
 
 * Tue Apr 24 2018 marksy <mark.syms@citrix.com> - 2.10.2-1.2.0
