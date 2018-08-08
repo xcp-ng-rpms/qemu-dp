@@ -115,7 +115,7 @@ BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel
 
 %if "%{?xcp_ng_section}" == "extras"
-BuildRequires: librbd1-devel
+BuildRequires: librbd-devel
 %endif
 
 %description
