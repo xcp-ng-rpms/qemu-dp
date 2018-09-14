@@ -1,0 +1,294 @@
+Remove unwanted crypto
+
+From: Tim Smith <tim.smith@citrix.com>
+
+We do not want to use any encryption in qemu-dp, so compile
+it all out.
+---
+ Makefile                         |    4 -
+ backends/Makefile.objs           |    4 -
+ block/Makefile.objs              |    6 +
+ crypto/Makefile.objs             |    4 +
+ default-configs/i386-softmmu.mak |    2 
+ hw/virtio/Makefile.objs          |    2 
+ stubs/Makefile.objs              |    1 
+ stubs/crypto.c                   |  170 ++++++++++++++++++++++++++++++++++++++
+ 8 files changed, 184 insertions(+), 9 deletions(-)
+ create mode 100644 stubs/crypto.c
+
+diff --git a/Makefile b/Makefile
+index ea4fc3291b..31758b61e5 100644
+--- a/Makefile
++++ b/Makefile
+@@ -622,8 +622,8 @@ qemu-dp$(EXESUF): \
+     hw/core/qdev.o hw/core/bus.o hw/core/hotplug.o hw/core/qdev-properties.o hw/core/irq.o \
+     hw/core/fw-path-provider.o hw/core/reset.o chardev/char-socket.o \
+     \
+-    libqemudpqapi.a libqemuchardev.a libqemublock.a libqemuio.a libqemucrypto.a libqemuqom.a \
+-    libqemucommondp.a libqemuutil.a
++    libqemudpqapi.a libqemuchardev.a libqemublock.a libqemuio.a libqemuqom.a \
++    libqemucommondp.a libqemuutil.a libqemucrypto.a
+ 
+ qemu-dp$(EXESUF): LIBS = -lglib-2.0 -lz -laio -lutil -lxenevtchn -lxengnttab -lxenstore -lxenctrl -lxenforeignmemory
+ 
+diff --git a/backends/Makefile.objs b/backends/Makefile.objs
+index ad7c0325ed..d317bc9677 100644
+--- a/backends/Makefile.objs
++++ b/backends/Makefile.objs
+@@ -6,8 +6,8 @@ common-obj-$(CONFIG_TPM) += tpm.o
+ common-obj-y += hostmem.o hostmem-ram.o
+ common-obj-$(CONFIG_LINUX) += hostmem-file.o
+ 
+-common-obj-y += cryptodev.o
+-common-obj-y += cryptodev-builtin.o
++common-obj-$(call lnot,$(CONFIG_XEN)) += cryptodev.o
++common-obj-$(call lnot,$(CONFIG_XEN)) += cryptodev-builtin.o
+ 
+ ifeq ($(CONFIG_VIRTIO),y)
+ common-obj-y += cryptodev-vhost.o
+diff --git a/block/Makefile.objs b/block/Makefile.objs
+index d644bac60a..5829aae1cb 100644
+--- a/block/Makefile.objs
++++ b/block/Makefile.objs
+@@ -1,4 +1,5 @@
+-block-obj-y += raw-format.o qcow.o vdi.o vmdk.o cloop.o bochs.o vpc.o vvfat.o dmg.o
++block-obj-y += raw-format.o qcow.o vdi.o
++block-obj-$(call lnot,$(CONFIG_XEN)) += vmdk.o cloop.o bochs.o vpc.o vvfat.o dmg.o
+ block-obj-y += qcow2.o qcow2-refcount.o qcow2-cluster.o qcow2-snapshot.o qcow2-cache.o qcow2-bitmap.o
+ block-obj-y += qed.o qed-l2-cache.o qed-table.o qed-cluster.o
+ block-obj-y += qed-check.o
+@@ -13,7 +14,8 @@ block-obj-y += null.o mirror.o commit.o io.o create.o
+ block-obj-y += throttle-groups.o
+ block-obj-$(CONFIG_LINUX) += nvme.o
+ 
+-block-obj-y += nbd.o nbd-client.o sheepdog.o
++block-obj-y += nbd.o nbd-client.o
++block-obj-$(call lnot,$(CONFIG_XEN)) += sheepdog.o
+ block-obj-$(CONFIG_LIBISCSI) += iscsi.o
+ block-obj-$(if $(CONFIG_LIBISCSI),y,n) += iscsi-opts.o
+ block-obj-$(CONFIG_LIBNFS) += nfs.o
+diff --git a/crypto/Makefile.objs b/crypto/Makefile.objs
+index 2b99e08062..b505b64895 100644
+--- a/crypto/Makefile.objs
++++ b/crypto/Makefile.objs
+@@ -38,3 +38,7 @@ crypto-obj-y += block-luks.o
+ crypto-aes-obj-y = aes.o
+ 
+ stub-obj-y += pbkdf-stub.o
++
++# Override the previous crypto-obj-y value to avoid building most crypto
++crypto-obj-y = hash.o
++crypto-obj-$(if $(CONFIG_NETTLE),n,$(if $(CONFIG_GCRYPT),n,y)) += hash-glib.o
+diff --git a/default-configs/i386-softmmu.mak b/default-configs/i386-softmmu.mak
+index 8c7d4a0fa0..1f7ede8956 100644
+--- a/default-configs/i386-softmmu.mak
++++ b/default-configs/i386-softmmu.mak
+@@ -6,9 +6,7 @@ include usb.mak
+ CONFIG_QXL=$(CONFIG_SPICE)
+ CONFIG_VGA_ISA=y
+ CONFIG_VGA_CIRRUS=y
+-CONFIG_VMWARE_VGA=y
+ CONFIG_VMXNET3_PCI=y
+-CONFIG_VIRTIO_VGA=y
+ CONFIG_VMMOUSE=y
+ CONFIG_IPMI=y
+ CONFIG_IPMI_LOCAL=y
+diff --git a/hw/virtio/Makefile.objs b/hw/virtio/Makefile.objs
+index 765d363c1f..432e4cb7c5 100644
+--- a/hw/virtio/Makefile.objs
++++ b/hw/virtio/Makefile.objs
+@@ -11,5 +11,5 @@ obj-y += virtio-crypto.o
+ obj-$(CONFIG_VIRTIO_PCI) += virtio-crypto-pci.o
+ endif
+ 
+-common-obj-$(call lnot,$(CONFIG_LINUX)) += vhost-stub.o
++common-obj-$(call lnot,$(CONFIG_XEN)) += vhost-stub.o
+ common-obj-$(CONFIG_ALL) += vhost-stub.o
+diff --git a/stubs/Makefile.objs b/stubs/Makefile.objs
+index 2d59d84091..a43744d29c 100644
+--- a/stubs/Makefile.objs
++++ b/stubs/Makefile.objs
+@@ -8,6 +8,7 @@ stub-obj-y += blockdev-close-all-bdrv-states.o
+ stub-obj-y += clock-warp.o
+ stub-obj-y += cpu-get-clock.o
+ stub-obj-y += cpu-get-icount.o
++stub-obj-y += crypto.o
+ stub-obj-y += dump.o
+ stub-obj-y += error-printf.o
+ stub-obj-y += fdset.o
+diff --git a/stubs/crypto.c b/stubs/crypto.c
+new file mode 100644
+index 0000000000..365e445139
+--- /dev/null
++++ b/stubs/crypto.c
+@@ -0,0 +1,170 @@
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "crypto/block.h"
++#include "crypto/cipher.h"
++#include "crypto/init.h"
++#include "crypto/tlssession.h"
++
++QCryptoBlock *qcrypto_block_open(QCryptoBlockOpenOptions *options,
++                                 const char *optprefix,
++                                 QCryptoBlockReadFunc readfunc,
++                                 void *opaque,
++                                 unsigned int flags,
++                                 Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return NULL;
++}
++
++QCryptoBlock *qcrypto_block_create(QCryptoBlockCreateOptions *options,
++                                   const char *optprefix,
++                                   QCryptoBlockInitFunc initfunc,
++                                   QCryptoBlockWriteFunc writefunc,
++                                   void *opaque,
++                                   Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return NULL;
++}
++
++int qcrypto_block_decrypt(QCryptoBlock *block,
++                          uint64_t startsector,
++                          uint8_t *buf,
++                          size_t len,
++                          Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return -1;
++}
++
++int qcrypto_block_encrypt(QCryptoBlock *block,
++                          uint64_t startsector,
++                          uint8_t *buf,
++                          size_t len,
++                          Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return -1;
++}
++
++void qcrypto_block_free(QCryptoBlock *block)
++{
++}
++
++uint64_t qcrypto_block_get_payload_offset(QCryptoBlock *block)
++{
++    return 0;
++}
++
++uint64_t qcrypto_block_get_sector_size(QCryptoBlock *block)
++{
++    return 0;
++}
++
++bool qcrypto_block_has_format(QCryptoBlockFormat format,
++                              const uint8_t *buf,
++                              size_t buflen)
++{
++    return false;
++}
++
++QCryptoBlockInfo *qcrypto_block_get_info(QCryptoBlock *block,
++                                         Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return NULL;
++}
++
++QCryptoTLSSession *qcrypto_tls_session_new(QCryptoTLSCreds *creds,
++                                           const char *hostname,
++                                           const char *aclname,
++                                           QCryptoTLSCredsEndpoint endpoint,
++                                           Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return NULL;
++}
++
++int qcrypto_tls_session_handshake(QCryptoTLSSession *sess,
++                                  Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return -1;
++}
++
++ssize_t qcrypto_tls_session_read(QCryptoTLSSession *sess,
++                                 char *buf,
++                                 size_t len)
++{
++    return -1;
++}
++
++ssize_t qcrypto_tls_session_write(QCryptoTLSSession *sess,
++                                  const char *buf,
++                                  size_t len)
++{
++    return -1;
++}
++
++QCryptoTLSSessionHandshakeStatus
++qcrypto_tls_session_get_handshake_status(QCryptoTLSSession *sess)
++{
++    return 0;
++}
++
++void qcrypto_tls_session_set_callbacks(QCryptoTLSSession *sess,
++                                       QCryptoTLSSessionWriteFunc writeFunc,
++                                       QCryptoTLSSessionReadFunc readFunc,
++                                       void *opaque)
++{
++}
++
++char *qcrypto_tls_session_get_peer_name(QCryptoTLSSession *sess)
++{
++    return NULL;
++}
++
++void qcrypto_tls_session_free(QCryptoTLSSession *sess)
++{
++}
++
++int qcrypto_tls_session_check_credentials(QCryptoTLSSession *sess,
++                                          Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return -1;
++}
++
++QCryptoCipher *qcrypto_cipher_new(QCryptoCipherAlgorithm alg,
++                                  QCryptoCipherMode mode,
++                                  const uint8_t *key, size_t nkey,
++                                  Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return NULL;
++}
++
++void qcrypto_cipher_free(QCryptoCipher *cipher)
++{
++}
++
++int qcrypto_cipher_encrypt(QCryptoCipher *cipher,
++                           const void *in,
++                           void *out,
++                           size_t len,
++                           Error **errp)
++{
++    error_setg_errno(errp, ENOSYS, "No crypto");
++    return -1;
++}
++
++bool qcrypto_cipher_supports(QCryptoCipherAlgorithm alg,
++                             QCryptoCipherMode mode)
++{
++    return false;
++}
++
++int qcrypto_init(Error **errp)
++{
++    return 0;
++}

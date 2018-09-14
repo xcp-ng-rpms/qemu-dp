@@ -1,0 +1,258 @@
+Do not use IOThread for xen_disk
+
+From: Tim Smith <tim.smith@citrix.com>
+
+Since we are taking over a pre-existing device added by a qmp
+command, in order to make everyone's locking safe we would
+have to replace the AioContext all the way down the chain.
+
+Rather than do that, use the context from the pre-existing
+device and do not create an IOThread for xen_disk.
+
+Also, make sure to acquire that AioContext as early as
+possible when attaching, and try to drain the IO queues
+when detaching.
+---
+ hw/block/xen_disk.c |   81 +++++++++++++++++++++++++++++++--------------------
+ 1 file changed, 49 insertions(+), 32 deletions(-)
+
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index 1c15aa98c7..847be9b460 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -129,9 +129,6 @@ struct XenBlkDev {
+     DriveInfo           *dinfo;
+     BlockBackend        *blk;
+     QEMUBH              *bh;
+-
+-    IOThread            *iothread;
+-    AioContext          *ctx;
+ };
+ 
+ /* ------------------------------------------------------------- */
+@@ -603,7 +600,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+     struct ioreq *ioreq = opaque;
+     struct XenBlkDev *blkdev = ioreq->blkdev;
+ 
+-    aio_context_acquire(blkdev->ctx);
++    aio_context_acquire(blk_get_aio_context(blkdev->blk));
+ 
+     if (ret != 0) {
+         xen_pv_printf(&blkdev->xendev, 0, "%s I/O error\n",
+@@ -667,7 +664,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+     qemu_bh_schedule(blkdev->bh);
+ 
+ done:
+-    aio_context_release(blkdev->ctx);
++    aio_context_release(blk_get_aio_context(blkdev->blk));
+ }
+ 
+ static bool blk_split_discard(struct ioreq *ioreq, blkif_sector_t sector_number,
+@@ -925,15 +922,14 @@ static void blk_bh(void *opaque)
+ {
+     struct XenBlkDev *blkdev = opaque;
+ 
+-    aio_context_acquire(blkdev->ctx);
++    aio_context_acquire(blk_get_aio_context(blkdev->blk));
+     blk_handle_requests(blkdev);
+-    aio_context_release(blkdev->ctx);
++    aio_context_release(blk_get_aio_context(blkdev->blk));
+ }
+ 
+ static void blk_alloc(struct XenDevice *xendev)
+ {
+     struct XenBlkDev *blkdev = container_of(xendev, struct XenBlkDev, xendev);
+-    Error *err = NULL;
+ 
+     trace_xen_disk_alloc(xendev->name);
+ 
+@@ -941,12 +937,6 @@ static void blk_alloc(struct XenDevice *xendev)
+     QLIST_INIT(&blkdev->finished);
+     QLIST_INIT(&blkdev->freelist);
+ 
+-    blkdev->iothread = iothread_create(xendev->name, &err);
+-    assert(!err);
+-
+-    blkdev->ctx = iothread_get_aio_context(blkdev->iothread);
+-    blkdev->bh = aio_bh_new(blkdev->ctx, blk_bh, blkdev);
+-
+     if (xen_mode != XEN_EMULATE) {
+         batch_maps = 1;
+     }
+@@ -1092,6 +1082,7 @@ static int blk_connect(struct XenDevice *xendev)
+     unsigned int ring_size, max_grants;
+     unsigned int i;
+     uint32_t *domids;
++    AioContext *ctx = NULL;
+ 
+     trace_xen_disk_connect(xendev->name);
+ 
+@@ -1136,16 +1127,23 @@ static int blk_connect(struct XenDevice *xendev)
+             error_free(local_err);
+             return -1;
+         }
++        /* Acquire the AIO context as soon as we know what it is */
++        ctx = blk_get_aio_context(blkdev->blk);
++        aio_context_acquire(ctx);
+         blk_set_enable_write_cache(blkdev->blk, !writethrough);
+     } else {
+         /* setup via qemu cmdline -> already setup for us */
+         xen_pv_printf(&blkdev->xendev, 2,
+                       "get configured bdrv (cmdline setup)\n");
+         blkdev->blk = blk_by_legacy_dinfo(blkdev->dinfo);
++
++        /* Acquire the AIO context as soon as we know what it is */
++        ctx = blk_get_aio_context(blkdev->blk);
++        aio_context_acquire(ctx);
+         if (blk_is_read_only(blkdev->blk) && !readonly) {
+             xen_pv_printf(&blkdev->xendev, 0, "Unexpected read-only drive");
+             blkdev->blk = NULL;
+-            return -1;
++            goto error_ctx_release;
+         }
+         /* blkdev->blk is not create by us, we get a reference
+          * so we can blk_unref() unconditionally */
+@@ -1178,7 +1176,7 @@ static int blk_connect(struct XenDevice *xendev)
+ 
+         if (xenstore_read_fe_int(&blkdev->xendev, "ring-ref",
+                                  &ring_ref) == -1) {
+-            return -1;
++            goto error_ctx_release;
+         }
+         blkdev->ring_ref[0] = ring_ref;
+ 
+@@ -1190,13 +1188,13 @@ static int blk_connect(struct XenDevice *xendev)
+ 
+             key = g_strdup_printf("ring-ref%u", i);
+             if (!key) {
+-                return -1;
++                goto error_ctx_release;
+             }
+ 
+             if (xenstore_read_fe_int(&blkdev->xendev, key,
+                                      &ring_ref) == -1) {
+                 g_free(key);
+-                return -1;
++                goto error_ctx_release;
+             }
+             blkdev->ring_ref[i] = ring_ref;
+ 
+@@ -1205,12 +1203,12 @@ static int blk_connect(struct XenDevice *xendev)
+     } else {
+         xen_pv_printf(xendev, 0, "invalid ring-page-order: %d\n",
+                       order);
+-        return -1;
++        goto error_ctx_release;
+     }
+ 
+     if (xenstore_read_fe_int(&blkdev->xendev, "event-channel",
+                              &blkdev->xendev.remote_port) == -1) {
+-        return -1;
++        goto error_ctx_release;
+     }
+     if (xenstore_read_fe_int(&blkdev->xendev, "feature-persistent", &pers)) {
+         blkdev->feature_persistent = FALSE;
+@@ -1248,7 +1246,7 @@ static int blk_connect(struct XenDevice *xendev)
+         break;
+     }
+     default:
+-        return -1;
++        goto error_ctx_release;
+     }
+ 
+     /* Calculate the maximum number of grants needed by ioreqs */
+@@ -1261,12 +1259,12 @@ static int blk_connect(struct XenDevice *xendev)
+     if (blkdev->xendev.gnttabdev == NULL) {
+         xen_pv_printf(xendev, 0, "xengnttab_open failed: %s\n",
+                       strerror(errno));
+-        return -1;
++        goto error_ctx_release;
+     }
+     if (xengnttab_set_max_grants(blkdev->xendev.gnttabdev, max_grants)) {
+         xen_pv_printf(xendev, 0, "xengnttab_set_max_grants failed: %s\n",
+                       strerror(errno));
+-        return -1;
++        goto error_ctx_release;
+     }
+ 
+     domids = g_new0(uint32_t, blkdev->nr_ring_ref);
+@@ -1283,7 +1281,7 @@ static int blk_connect(struct XenDevice *xendev)
+     g_free(domids);
+ 
+     if (!blkdev->sring) {
+-        return -1;
++        goto error_ctx_release;
+     }
+ 
+     blkdev->cnt_map++;
+@@ -1324,7 +1322,7 @@ static int blk_connect(struct XenDevice *xendev)
+         blkdev->persistent_gnt_count = 0;
+     }
+ 
+-    blk_set_aio_context(blkdev->blk, blkdev->ctx);
++    blkdev->bh = aio_bh_new(blk_get_aio_context(blkdev->blk), blk_bh, blkdev);
+ 
+     xen_be_bind_evtchn(&blkdev->xendev);
+ 
+@@ -1332,7 +1330,12 @@ static int blk_connect(struct XenDevice *xendev)
+                   "remote port %d, local port %d\n",
+                   blkdev->xendev.protocol, blkdev->nr_ring_ref,
+                   blkdev->xendev.remote_port, blkdev->xendev.local_port);
++    aio_context_release(ctx);
+     return 0;
++
++error_ctx_release:
++    aio_context_release(ctx);
++    return -1;
+ }
+ 
+ static void blk_disconnect(struct XenDevice *xendev)
+@@ -1341,18 +1344,34 @@ static void blk_disconnect(struct XenDevice *xendev)
+ 
+     trace_xen_disk_disconnect(xendev->name);
+ 
+-    aio_context_acquire(blkdev->ctx);
+-
+     if (blkdev->blk) {
+-        blk_set_aio_context(blkdev->blk, qemu_get_aio_context());
++        AioContext *ctx = blk_get_aio_context(blkdev->blk);
++        BlockDriverState *bs = blk_bs(blkdev->blk);
++
++        aio_context_acquire(ctx);
++
++        if (bs) {
++            /* Take steps to ensure that all I/O has finished. This code
++             * is modelled on bdrv_set_aio_context()
++             */
++            aio_disable_external(ctx);
++            bdrv_parent_drained_begin(bs, NULL);
++            bdrv_drain(bs); /* ensure there are no in-flight requests */
++
++            while (aio_poll(ctx, false)) {
++                /* wait for all bottom halves to execute */
++            }
++            bdrv_parent_drained_end(bs, NULL);
++        }
++
+         blk_detach_dev(blkdev->blk, blkdev);
+         blk_unref(blkdev->blk);
+         blkdev->blk = NULL;
++        qemu_bh_delete(blkdev->bh);
++        aio_context_release(ctx);
+     }
+     xen_pv_unbind_evtchn(&blkdev->xendev);
+ 
+-    aio_context_release(blkdev->ctx);
+-
+     if (blkdev->sring) {
+         xengnttab_unmap(blkdev->xendev.gnttabdev, blkdev->sring,
+                         blkdev->nr_ring_ref);
+@@ -1407,8 +1426,6 @@ static int blk_free(struct XenDevice *xendev)
+     g_free(blkdev->type);
+     g_free(blkdev->dev);
+     g_free(blkdev->devtype);
+-    qemu_bh_delete(blkdev->bh);
+-    iothread_destroy(blkdev->iothread);
+     return 0;
+ }
+ 

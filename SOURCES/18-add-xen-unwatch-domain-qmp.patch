@@ -1,0 +1,52 @@
+Add QMP command to unwatch a domain
+
+From: Tim Smith <tim.smith@citrix.com>
+
+
+---
+ dp-qapi/xen.json     |   17 +++++++++++++++++
+ hw/xen/xen_backend.c |    6 ++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/dp-qapi/xen.json b/dp-qapi/xen.json
+index 5d4e081548..6f1864c022 100644
+--- a/dp-qapi/xen.json
++++ b/dp-qapi/xen.json
+@@ -17,3 +17,20 @@
+ ##
+ { 'command': 'xen-watch-device',
+   'data': { 'domid': 'int', 'devid': 'int', 'type': 'str', 'blocknode': 'str', 'devicename': 'str' } }
++
++##
++# @xen-unwatch-device:
++#
++# Remove XenWD device
++#
++# @domid: xen domain id
++#
++# @devid: xen disk device id
++#
++# @type: device type
++#
++# Since: CitrixInternal
++##
++{ 'command': 'xen-unwatch-device',
++  'data': { 'domid': 'int', 'devid': 'int', 'type': 'str' } }
++
+diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
+index 4065ea72e4..843decfd6e 100644
+--- a/hw/xen/xen_backend.c
++++ b/hw/xen/xen_backend.c
+@@ -771,6 +771,12 @@ void qmp_xen_watch_device(int64_t domid, int64_t devid, const char *type, const
+     xendev->devicename = g_strdup(devicename);
+     xen_be_check_state(xendev);
+ }
++
++void qmp_xen_unwatch_device(int64_t domid, int64_t devid, const char *type, Error **errp)
++{
++    struct XenDevice *xendev = xen_pv_find_xendev(type, domid, devid);
++    if (xendev) xen_pv_del_xendev(xendev);
++}
+ #endif
+ 
+ type_init(xenbe_register_types)
