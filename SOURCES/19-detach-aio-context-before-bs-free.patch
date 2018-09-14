@@ -1,0 +1,26 @@
+Detach AIO context before freeing BS
+
+From: Tim Smith <tim.smith@citrix.com>
+
+With some block drivers, detaching the AIO context has side-effects
+beyond the BlockDriverState. In the case of the QCOW2 block driver,
+it will stop and remove any cache clean timer which might be running,
+which is important because the timer has a reference to the
+BlockDriverState structure and not stopping it will cause a later
+use-after-free.
+---
+ block.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/block.c b/block.c
+index c212741860..0d7199432d 100644
+--- a/block.c
++++ b/block.c
+@@ -3548,6 +3548,7 @@ static void bdrv_delete(BlockDriverState *bs)
+     }
+     QTAILQ_REMOVE(&all_bdrv_states, bs, bs_list);
+ 
++    bdrv_detach_aio_context(bs);
+     g_free(bs);
+ }
+ 

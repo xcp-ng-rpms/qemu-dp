@@ -1,0 +1,167 @@
+Use the legacy grant copy ioctl
+
+From: Mark Syms <mark.syms@citrix.com>
+
+This patch to be removed when the upstream ioctl is present in the kernel.
+
+Patch modified for v2.12.0 by tim.smith@citrix.com
+---
+ hw/block/xen_disk.c          |   32 +++++++++++++++----------------
+ hw/xen/xen_backend.c         |   24 +++++++++++++++++++++++
+ include/hw/xen/xen_backend.h |   43 ++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 82 insertions(+), 17 deletions(-)
+
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index 873a1d7a84..1c15aa98c7 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -532,7 +532,8 @@ static int ioreq_init_copy_buffers(struct ioreq *ioreq)
+ static int ioreq_grant_copy(struct ioreq *ioreq)
+ {
+     xengnttab_handle *gnt = ioreq->blkdev->xendev.gnttabdev;
+-    xengnttab_grant_copy_segment_t segs[BLKIF_MAX_SEGMENTS_PER_REQUEST];
++    struct legacy_ioctl_gntdev_grant_copy gcopy;
++    struct legacy_gntdev_grant_copy_segment segs[BLKIF_MAX_SEGMENTS_PER_REQUEST];
+     int i, count, rc;
+     int64_t file_blk = ioreq->blkdev->file_blk;
+ 
+@@ -543,24 +544,21 @@ static int ioreq_grant_copy(struct ioreq *ioreq)
+     count = ioreq->v.niov;
+ 
+     for (i = 0; i < count; i++) {
+-        if (ioreq->req.operation == BLKIF_OP_READ) {
+-            segs[i].flags = GNTCOPY_dest_gref;
+-            segs[i].dest.foreign.ref = ioreq->refs[i];
+-            segs[i].dest.foreign.domid = ioreq->domids[i];
+-            segs[i].dest.foreign.offset = ioreq->req.seg[i].first_sect * file_blk;
+-            segs[i].source.virt = ioreq->v.iov[i].iov_base;
+-        } else {
+-            segs[i].flags = GNTCOPY_source_gref;
+-            segs[i].source.foreign.ref = ioreq->refs[i];
+-            segs[i].source.foreign.domid = ioreq->domids[i];
+-            segs[i].source.foreign.offset = ioreq->req.seg[i].first_sect * file_blk;
+-            segs[i].dest.virt = ioreq->v.iov[i].iov_base;
+-        }
+-        segs[i].len = (ioreq->req.seg[i].last_sect
+-                       - ioreq->req.seg[i].first_sect + 1) * file_blk;
++        struct legacy_gntdev_grant_copy_segment *gcopy_seg = &segs[i];
++        gcopy.domid = ioreq->domids[i];
++        gcopy_seg->iov.iov_base = ioreq->v.iov[i].iov_base;
++        gcopy_seg->iov.iov_len = (ioreq->req.seg[i].last_sect
++                           - ioreq->req.seg[i].first_sect + 1) * file_blk;
++        gcopy_seg->ref = ioreq->refs[i];
++        gcopy_seg->offset = ioreq->req.seg[i].first_sect * file_blk;
+     }
+ 
+-    rc = xengnttab_grant_copy(gnt, count, segs);
++    gcopy.dir = ioreq->req.operation != BLKIF_OP_READ;
++
++    gcopy.count = count;
++    gcopy.segments = segs;
++
++    rc = ioctl(gnt->fd, IOCTL_LEGACY_GNTDEV_GRANT_COPY, &gcopy);
+ 
+     if (rc) {
+         xen_pv_printf(&ioreq->blkdev->xendev, 0,
+diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
+index 3a5a2a2069..4065ea72e4 100644
+--- a/hw/xen/xen_backend.c
++++ b/hw/xen/xen_backend.c
+@@ -39,6 +39,10 @@
+ 
+ #include <xen/grant_table.h>
+ 
++#if CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40800
++#include <sys/ioctl.h>
++#endif
++
+ DeviceState *xen_sysdev;
+ BusState *xen_sysbus;
+ 
+@@ -535,6 +539,22 @@ void xenstore_update_fe(char *watch, struct XenDevice *xendev)
+ }
+ /* -------------------------------------------------------------------- */
+ 
++#if CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40800
++int check_for_legacy_grant_copy(xengnttab_handle *xgt)
++{
++    int rc;
++    int fd = xgt->fd;
++    struct legacy_ioctl_gntdev_grant_copy copy;
++
++    copy.segments = NULL;
++    copy.count = 0;
++
++    rc = ioctl(fd, IOCTL_LEGACY_GNTDEV_GRANT_COPY, &copy);
++
++    return rc;
++}
++#endif
++
+ int xen_be_init(void)
+ {
+     xengnttab_handle *gnttabdev;
+@@ -554,7 +574,11 @@ int xen_be_init(void)
+ 
+     gnttabdev = xengnttab_open(NULL, 0);
+     if (gnttabdev != NULL) {
++#if CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40800
++        if (check_for_legacy_grant_copy(gnttabdev) == 0) {
++#else
+         if (xengnttab_grant_copy(gnttabdev, 0, NULL) == 0) {
++#endif
+             xen_feature_grant_copy = true;
+         }
+         xengnttab_close(gnttabdev);
+diff --git a/include/hw/xen/xen_backend.h b/include/hw/xen/xen_backend.h
+index 3a27692407..9e66186cfb 100644
+--- a/include/hw/xen/xen_backend.h
++++ b/include/hw/xen/xen_backend.h
+@@ -64,4 +64,47 @@ int xen_config_dev_vfb(int vdev, const char *type);
+ int xen_config_dev_vkbd(int vdev);
+ int xen_config_dev_console(int vdev);
+ 
++#if CONFIG_XEN_CTRL_INTERFACE_VERSION >= 40800
++struct xengntdev_handle {
++    void *logger, *logger_tofree;
++    int fd;
++};
++
++typedef struct xengntdev_handle xengnttab_handle;
++
++struct legacy_gntdev_grant_copy_segment {
++       /*
++        * source address and length
++        */
++       struct iovec iov;
++
++       /* the granted page */
++       uint32_t ref;
++
++       /* offset in the granted page */
++       uint16_t offset;
++
++       /* grant copy result (GNTST_XXX) */
++       int16_t status;
++};
++
++
++struct legacy_ioctl_gntdev_grant_copy {
++       /*
++        * copy direction: 0 to copy to guest, 1 to copy from guest
++        */
++       int dir;
++
++       /* domain ID */
++       uint32_t domid;
++
++       unsigned int count;
++
++       struct legacy_gntdev_grant_copy_segment *segments;
++};
++#define IOCTL_LEGACY_GNTDEV_GRANT_COPY \
++_IOC(_IOC_NONE, 'G', 8, sizeof(struct legacy_ioctl_gntdev_grant_copy))
++int check_for_legacy_grant_copy(xengnttab_handle *xgt);
++#endif
++
+ #endif /* QEMU_HW_XEN_BACKEND_H */

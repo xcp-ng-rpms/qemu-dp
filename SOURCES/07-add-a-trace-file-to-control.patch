@@ -1,0 +1,36 @@
+Add a trace file to control qemu-dp trace output
+
+From: Tim Smith <tim.smith@citrix.com>
+
+This will need installing in the right place by the SPEC
+file in order to do anything useful.
+---
+ qemu-dp-tracing |    5 +++++
+ qemu-dp.c       |    2 +-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+ create mode 100644 qemu-dp-tracing
+
+diff --git a/qemu-dp-tracing b/qemu-dp-tracing
+new file mode 100644
+index 0000000000..4ad28d3795
+--- /dev/null
++++ b/qemu-dp-tracing
+@@ -0,0 +1,5 @@
++xen_disk_*
++nbd_blk_aio*
++blk_root*
++bdrv_open*
++dp_handle_qmp_command*
+diff --git a/qemu-dp.c b/qemu-dp.c
+index 1515088c9b..212961630f 100644
+--- a/qemu-dp.c
++++ b/qemu-dp.c
+@@ -110,7 +110,7 @@ int main(int argc, char **argv)
+         exit(1);
+     }
+ 
+-    qemu_dp_trace_init_events("/usr/lib64/xen/bin/qemu-dp-tracing");
++    qemu_dp_trace_init_events("/usr/lib64/qemu-dp/bin/qemu-dp-tracing");
+ 
+     if (qemu_init_main_loop(&err)) {
+         error_report_err(err);
