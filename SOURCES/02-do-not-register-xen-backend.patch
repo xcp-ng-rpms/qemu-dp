@@ -1,0 +1,23 @@
+Do not register Xen backend for qdisk in QEMUDP build
+
+From: Tim Smith <tim.smith@citrix.com>
+
+
+---
+ hw/xen/xen_backend.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
+index d84cc44f10..dec43da147 100644
+--- a/hw/xen/xen_backend.c
++++ b/hw/xen/xen_backend.c
+@@ -600,7 +600,9 @@ void xen_be_register_common(void)
+ 
+     xen_be_register("console", &xen_console_ops);
+     xen_be_register("vkbd", &xen_kbdmouse_ops);
++#ifndef CONFIG_QEMUDP
+     xen_be_register("qdisk", &xen_blkdev_ops);
++#endif
+ #ifdef CONFIG_VIRTFS
+     xen_be_register("9pfs", &xen_9pfs_ops);
+ #endif

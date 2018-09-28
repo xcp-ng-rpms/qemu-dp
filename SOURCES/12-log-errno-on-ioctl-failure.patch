@@ -1,0 +1,22 @@
+Log errno when GRANT_COPY ioctl fails
+
+From: Tim Smith <tim.smith@citrix.com>
+
+
+---
+ hw/block/xen_disk.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index 847be9b460..23777457a0 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -559,7 +559,7 @@ static int ioreq_grant_copy(struct ioreq *ioreq)
+ 
+     if (rc) {
+         xen_pv_printf(&ioreq->blkdev->xendev, 0,
+-                      "failed to copy data %d\n", rc);
++                      "failed to copy data %d (%d)\n", rc, errno);
+         ioreq->aio_errors++;
+         return -1;
+     }
