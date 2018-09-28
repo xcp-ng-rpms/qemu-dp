@@ -3,20 +3,22 @@ From: Roman Posudnevskiy <ramzes_r@yahoo.com>
 Enable support of Ceph RBD
 
 diff --git a/Makefile b/Makefile
-index a261c12..4363361 100644
+index 31758b6..3d41ab8 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -402,6 +402,8 @@ qemu-dp$(EXESUF): \
-     libqemuqom.a \
-     libqemuutildp.a \
-     libqemucrypto.a \
+@@ -623,7 +623,9 @@ qemu-dp$(EXESUF): \
+     hw/core/fw-path-provider.o hw/core/reset.o chardev/char-socket.o \
+     \
+     libqemudpqapi.a libqemuchardev.a libqemublock.a libqemuio.a libqemuqom.a \
+-    libqemucommondp.a libqemuutil.a libqemucrypto.a
++    libqemucommondp.a libqemuutil.a libqemucrypto.a \
 +    stubs/crypto.o \
-+    block/rbd.o \
-     libqemustub.a
- qemu-dp$(EXESUF): LIBS = -lglib-2.0 -lz -laio -lxenevtchn -lxengnttab -lxenstore -lxenctrl -lxenforeignmemory
++    block/rbd.o
+ 
+ qemu-dp$(EXESUF): LIBS = -lglib-2.0 -lz -laio -lutil -lxenevtchn -lxengnttab -lxenstore -lxenctrl -lxenforeignmemory
  
 diff --git a/stubs/crypto.c b/stubs/crypto.c
-index ced575f..807f05b 100644
+index 365e445..0d90f65 100644
 --- a/stubs/crypto.c
 +++ b/stubs/crypto.c
 @@ -1,6 +1,7 @@
@@ -27,7 +29,7 @@ index ced575f..807f05b 100644
  #include "crypto/cipher.h"
  #include "crypto/init.h"
  #include "crypto/tlssession.h"
-@@ -163,3 +164,60 @@ int qcrypto_init(Error **errp)
+@@ -168,3 +169,60 @@ int qcrypto_init(Error **errp)
  {
      return 0;
  }

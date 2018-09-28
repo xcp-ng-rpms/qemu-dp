@@ -84,6 +84,12 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 
 %changelog
 <<<<<<< HEAD
+* Fri Sep 28 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.10.0
+- Add new QMP commands x-blockdev-suspend and x-blockdev-resume
+
+* Fri Sep 28 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.10.0
+- Enable support of Ceph RBD
+
 * Thu Jul 21 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.0
 - Add new QMP commands x-blockdev-suspend and x-blockdev-resume
 
