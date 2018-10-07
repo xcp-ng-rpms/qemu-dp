@@ -39,8 +39,8 @@ BuildRequires: libseccomp-devel zlib-devel
 
 # XCP-ng patches
 %if "%{?xcp_ng_section}" == "extras"
-Patch1000: qemu-dp-2.10.2-add-rbd-support.XCP-ng.patch
-Patch1001: qemu-dp-2.10.2-add_x-blockdev-suspend_x-blockdev-resume_qmp_commands.XCP-ng.patch
+Patch1000: qemu-dp-2.12.0-add-rbd-support.XCP-ng.patch
+Patch1001: qemu-dp-2.12.0-add_x-blockdev-suspend_x-blockdev-resume_qmp_commands.XCP-ng.patch
 %endif
 
 %if "%{?xcp_ng_section}" == "extras"
