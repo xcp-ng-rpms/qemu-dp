@@ -11,6 +11,7 @@ Release: 1.10.0.1.xcp%{?rel_suffix}
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
+Requires: glibc >= 2.17-222
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/%{name}/archive?at=v2.12.0-rc2&format=tar.gz&prefix=%{name}-%{version}#/%{name}-%{version}.tar.gz
 Patch0: 01-make-a-qemu-dp-build.patch
 Patch1: 02-do-not-register-xen-backend.patch
@@ -41,6 +42,7 @@ BuildRequires: libseccomp-devel zlib-devel
 %if "%{?xcp_ng_section}" == "extras"
 Patch1000: qemu-dp-2.12.0-add-rbd-support.XCP-ng.patch
 Patch1001: qemu-dp-2.12.0-add_x-blockdev-suspend_x-blockdev-resume_qmp_commands.XCP-ng.patch
+Patch1002: qemu-dp-2.10.2-add-sheepdog-support.XCP-ng.patch
 %endif
 
 %if "%{?xcp_ng_section}" == "extras"
@@ -84,17 +86,11 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 
 %changelog
 <<<<<<< HEAD
-* Fri Sep 28 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.10.0
+* Tue Dec 25 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.12.0-1.10.0
+- Enable support of Sheepdog distributed object storage
+
+* Fri Sep 28 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.12.0-1.10.0
 - Add new QMP commands x-blockdev-suspend and x-blockdev-resume
-
-* Fri Sep 28 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.10.0
-- Enable support of Ceph RBD
-
-* Thu Jul 21 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.0
-- Add new QMP commands x-blockdev-suspend and x-blockdev-resume
-
-* Thu Jul 05 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.10.2-1.2.0
-- Enable support of Ceph RBD
 =======
 * Fri Sep 14 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.12.0-1.10.0.1.xcp
 - Enable support of Ceph RBD in 'extras' build

@@ -1,0 +1,14 @@
+diff --git a/block/Makefile.objs b/block/Makefile.objs
+index 5829aae..1da7979 100644
+--- a/block/Makefile.objs
++++ b/block/Makefile.objs
+@@ -14,8 +14,7 @@ block-obj-y += null.o mirror.o commit.o io.o create.o
+ block-obj-y += throttle-groups.o
+ block-obj-$(CONFIG_LINUX) += nvme.o
+ 
+-block-obj-y += nbd.o nbd-client.o
+-block-obj-$(call lnot,$(CONFIG_XEN)) += sheepdog.o
++block-obj-y += nbd.o nbd-client.o sheepdog.o
+ block-obj-$(CONFIG_LIBISCSI) += iscsi.o
+ block-obj-$(if $(CONFIG_LIBISCSI),y,n) += iscsi-opts.o
+ block-obj-$(CONFIG_LIBNFS) += nfs.o
