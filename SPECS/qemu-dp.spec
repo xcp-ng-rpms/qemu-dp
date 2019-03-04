@@ -27,6 +27,7 @@ Patch16: 17-avoid-repeated-memory.patch
 Patch17: 18-add-xen-unwatch-domain-qmp.patch
 Patch18: 19-detach-aio-context-before-bs-free.patch
 Patch19: 20-fix-file-and-filename.patch
+BuildRequires: gcc
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
