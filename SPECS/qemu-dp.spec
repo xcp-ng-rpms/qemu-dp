@@ -1,13 +1,8 @@
-# XCP-ng: release suffix for 'extras' section
-%if "%{?xcp_ng_section}" == "extras"
-%define rel_suffix .extras
-%endif
-
 Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 1.10.0.1.xcp%{?rel_suffix}
+Release: 1.10.0.1%dist
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
@@ -36,15 +31,6 @@ BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel zlib-devel
-
-# XCP-ng patches
-%if "%{?xcp_ng_section}" == "extras"
-Patch1000: qemu-dp-2.10.2-add-rbd-support.XCP-ng.patch
-%endif
-
-%if "%{?xcp_ng_section}" == "extras"
-BuildRequires: librbd-devel
-%endif
 
 %description
 This package contains Qemu, but builds only tools and a limited qemu-dp which handles
@@ -82,10 +68,6 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{_libdir}/qemu-dp/bin
 
 %changelog
-* Fri Sep 14 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.12.0-1.10.0.1.xcp
-- Enable support of Ceph RBD in 'extras' build
-- Initially committed on Thu Jul 05 2018, reapplied on top of package
-
 * Thu Aug 16 2018 Mark Syms <mark.syms@citrix.com> - 2.12.0-1.10.0
 - CA-295665 More problems with relink_chain
 
