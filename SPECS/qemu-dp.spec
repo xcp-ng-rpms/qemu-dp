@@ -32,6 +32,10 @@ Patch16: 17-avoid-repeated-memory.patch
 Patch17: 18-add-xen-unwatch-domain-qmp.patch
 Patch18: 19-detach-aio-context-before-bs-free.patch
 Patch19: 20-fix-file-and-filename.patch
+Patch20: 21-Revert-Use-libaio-by-default-and-O_DIRECT-only-for-w.patch
+Patch21: 22-Revert-Improve-xen_disk-response-latency.patch
+Patch22: 23-Revert-Improve-xen_disk-s-batching-behaviour.patch
+BuildRequires: gcc
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
@@ -82,6 +86,9 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{_libdir}/qemu-dp/bin
 
 %changelog
+* Mon Mar 4 2019 Ronan Abhamon <ronan.abhamon@vates.fr> - 2.12.0-1.10.0.1.xcp
+- Add gcc as a build requirement
+
 * Fri Sep 14 2018 rposudnevskiy <ramzes_r@yahoo.com> - 2.12.0-1.10.0.1.xcp
 - Enable support of Ceph RBD in 'extras' build
 - Initially committed on Thu Jul 05 2018, reapplied on top of package

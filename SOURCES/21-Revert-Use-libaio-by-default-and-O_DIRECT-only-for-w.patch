@@ -1,0 +1,61 @@
+From 48f3943b454b98ea1aaef68eaae2172994e1f9e9 Mon Sep 17 00:00:00 2001
+From: Ronan Abhamon <ronan.abhamon@vates.fr>
+Date: Tue, 5 Mar 2019 17:32:59 +0100
+Subject: [PATCH 1/1] Revert "Use libaio by default and O_DIRECT only for
+ write"
+
+This reverts commit 0840f2459281662c5a17a57f1f8e7b3a6e770d67.
+
+Signed-off-by: Ronan Abhamon <ronan.abhamon@vates.fr>
+---
+ block/file-posix.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/block/file-posix.c b/block/file-posix.c
+index d511bc54ec..3794c0007a 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -381,9 +381,7 @@ static void raw_parse_flags(int bdrv_flags, int *open_flags)
+     /* Use O_DSYNC for write-through caching, no flags for write-back caching,
+      * and O_DIRECT for no caching. */
+     if ((bdrv_flags & BDRV_O_NOCACHE)) {
+-        if ((bdrv_flags & BDRV_O_RDWR) != 0) {
+-            *open_flags |= O_DIRECT;
+-        }
++        *open_flags |= O_DIRECT;
+     }
+ }
+ 
+@@ -450,7 +448,9 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
+         goto fail;
+     }
+ 
+-    aio_default = BLOCKDEV_AIO_OPTIONS_NATIVE;
++    aio_default = (bdrv_flags & BDRV_O_NATIVE_AIO)
++                  ? BLOCKDEV_AIO_OPTIONS_NATIVE
++                  : BLOCKDEV_AIO_OPTIONS_THREADS;
+     aio = qapi_enum_parse(&BlockdevAioOptions_lookup,
+                           qemu_opt_get(opts, "aio"),
+                           aio_default, &local_err);
+@@ -532,12 +532,12 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
+ 
+ #ifdef CONFIG_LINUX_AIO
+      /* Currently Linux does AIO only for files opened with O_DIRECT */
+-//     if (s->use_linux_aio && !(s->open_flags & O_DIRECT)) {
+-//         error_setg(errp, "aio=native was specified, but it requires "
+-//                          "cache.direct=on, which was not specified.");
+-//         ret = -EINVAL;
+-//         goto fail;
+-//     }
++    if (s->use_linux_aio && !(s->open_flags & O_DIRECT)) {
++        error_setg(errp, "aio=native was specified, but it requires "
++                         "cache.direct=on, which was not specified.");
++        ret = -EINVAL;
++        goto fail;
++    }
+ #else
+     if (s->use_linux_aio) {
+         error_setg(errp, "aio=native was specified, but is not supported "
+-- 
+2.21.0
+
