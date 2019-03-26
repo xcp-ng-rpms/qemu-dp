@@ -2,7 +2,7 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 1.10.0.1%dist
+Release: 1.10.0.2%{dist}
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
