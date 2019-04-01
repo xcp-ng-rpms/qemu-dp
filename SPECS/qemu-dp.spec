@@ -2,10 +2,10 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 1.10.0.2%{dist}
+Release: 1.10.0.3%{dist}
 License: GPL
 Requires: jemalloc
-Requires: xs-clipboardd
+Requires: xcp-clipboardd
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/%{name}/archive?at=v2.12.0-rc2&format=tar.gz&prefix=%{name}-%{version}#/%{name}-%{version}.tar.gz
 Patch0: 01-make-a-qemu-dp-build.patch
 Patch1: 02-do-not-register-xen-backend.patch
@@ -69,6 +69,9 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{_libdir}/qemu-dp/bin
 
 %changelog
+* Mon Apr 01 2019 Ronan Abhamon <ronan.abhamon@vates.fr> - 2.12.0-1.10.0.3
+- xcp-clipboardd is now required instead of xs-clipboardd
+
 * Thu Aug 16 2018 Mark Syms <mark.syms@citrix.com> - 2.12.0-1.10.0
 - CA-295665 More problems with relink_chain
 
