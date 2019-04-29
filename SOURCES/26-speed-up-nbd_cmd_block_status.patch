@@ -1,0 +1,37 @@
+Speed up NBD_CMD_BLOCK_STATUS on QCOW2
+
+From: Tim Smith <tim.smith@citrix.com>
+
+Having gotten an extent from the block driver, the IO code will
+attempt to get information on the local file which it appears to
+intend for some sort of range clamping. But when we have a QCOW2
+driver backed by a file, doing this operation is very expensive
+and does not appear to gain us anything, so for our case just
+define it out.
+---
+ block/io.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/block/io.c b/block/io.c
+index bd9a19a9c4..0f1d81333c 100644
+--- a/block/io.c
++++ b/block/io.c
+@@ -2021,6 +2021,10 @@ static int coroutine_fn bdrv_co_block_status(BlockDriverState *bs,
+         }
+     }
+ 
++/* The extra information provided by doing this comes at an
++ * EXTREMELY large cost for big QCow2 files. Let us not
++ * bother for qemu-dp */
++#ifndef CONFIG_QEMUDP
+     if (want_zero && local_file && local_file != bs &&
+         (ret & BDRV_BLOCK_DATA) && !(ret & BDRV_BLOCK_ZERO) &&
+         (ret & BDRV_BLOCK_OFFSET_VALID)) {
+@@ -2048,6 +2052,7 @@ static int coroutine_fn bdrv_co_block_status(BlockDriverState *bs,
+             }
+         }
+     }
++#endif /* CONFIG_QEMUDP */
+ 
+ out:
+     bdrv_dec_in_flight(bs);

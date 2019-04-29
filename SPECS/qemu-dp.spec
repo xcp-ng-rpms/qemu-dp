@@ -2,31 +2,45 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 1.10.0.3%{dist}
+Release: 2.0.3%{?dist}
 License: GPL
 Requires: jemalloc
 Requires: xcp-clipboardd
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/%{name}/archive?at=v2.12.0-rc2&format=tar.gz&prefix=%{name}-%{version}#/%{name}-%{version}.tar.gz
+Requires: kernel >= 4.19.19-5.0.0
+
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz
+
 Patch0: 01-make-a-qemu-dp-build.patch
 Patch1: 02-do-not-register-xen-backend.patch
 Patch2: 03-added-xen-watch-domain-qmp.patch
 Patch3: 04-make-blockdev-snapshot-use.patch
-Patch4: 05-use-the-legacy-grant-copy.patch
-Patch5: 06-send-stdout-and-stderr-to.patch
-Patch6: 07-add-a-trace-file-to-control.patch
-Patch7: 08-do-not-use-iothread-for.patch
-Patch8: 09-remove-unwanted-crypto.patch
-Patch9: 10-use-libaio-by-default-and.patch
-Patch10: 11-add-qmp_relink_chain-command.patch
-Patch11: 12-log-errno-on-ioctl-failure.patch
-Patch12: 13-improve-xen_disk-batching.patch
-Patch13: 14-improve-xen_disk-response.patch
-Patch14: 15-memory-usage-experiments.patch
-Patch15: 16-adjust-qcow2-default-cache.patch
-Patch16: 17-avoid-repeated-memory.patch
-Patch17: 18-add-xen-unwatch-domain-qmp.patch
-Patch18: 19-detach-aio-context-before-bs-free.patch
-Patch19: 20-fix-file-and-filename.patch
+Patch4: 05-send-stdout-and-stderr-to.patch
+Patch5: 06-add-a-trace-file-to-control.patch
+Patch6: 07-do-not-use-iothread-for.patch
+Patch7: 08-remove-unwanted-crypto.patch
+Patch8: 09-use-libaio-by-default-and.patch
+Patch9: 10-add-qmp_relink_chain-command.patch
+Patch10: 11-log-errno-on-ioctl-failure.patch
+Patch11: 12-improve-xen_disk-batching.patch
+Patch12: 13-improve-xen_disk-response.patch
+Patch13: 14-adjust-qcow2-default-cache.patch
+Patch14: 15-avoid-repeated-memory.patch
+Patch15: 16-add-xen-unwatch-domain-qmp.patch
+Patch16: 17-detach-aio-context-before-bs-free.patch
+Patch17: 18-fix-file-and-filename.patch
+Patch18: 19-xen-add-a-meaningful.patch
+Patch19: 20-xen_backend-add-grant-table.patch
+Patch20: 21-xen_disk-remove-open-coded-use.patch
+Patch21: 22-xen_backend-add-an-emulation.patch
+Patch22: 23-xen_disk-remove-use-of-grant.patch
+Patch23: 24-avoid-trying-to-clean-an-empty.patch
+Patch24: 25-flush-all-block-drivers-on.patch
+Patch25: 26-speed-up-nbd_cmd_block_status.patch
+Patch26: 27-limit-logging-of-ioreq_parse.patch
+
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz) = 0e87fdc966d05f4e5ad868034fcd8ee2a08ca62d
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.3#/qemu.patches.tar) = 891e3b43dc7c33ac6862406e83f973ea595bf4de
+
 BuildRequires: gcc
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
@@ -66,11 +80,24 @@ rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_
 install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-tracing"
 
 %files
+%dir %{_libdir}/qemu-dp/
 %{_libdir}/qemu-dp/bin
 
 %changelog
-* Mon Apr 01 2019 Ronan Abhamon <ronan.abhamon@vates.fr> - 2.12.0-1.10.0.3
-- xcp-clipboardd is now required instead of xs-clipboardd
+* Fri Apr 05 2019 Tim Smith <tim.smith@citrix.com> - 2:2.12.0-2.0.3
+- CA-314386 limit ioreq_parse() errors to avoid log storm
+
+* Thu Mar 21 2019 Tim Smith <tim.smith@citrix.com> - 2:2.12.0-2.0.2
+- CA-312853 drop background cache cleaner
+
+* Wed Feb 27 2019 Tim Smith <tim.smith@citrix.com> - 2:2.12.0-2.0.1
+- CA-311595 Improve defence against cleaning dead caches
+
+* Wed Feb  6 2019 Tim Smith <tim.smith@citrix.com> - 2:2.12.0-2.0.0
+- CA-308852 Speed up NBD_CMD_BLOCK_STATUS
+- CA-307294 QCow2 cache clean timers called with null cache
+- CA-300339 backport patches to remove grant map/unmap
+- Drop qemu_trad_image.py as it's device model related
 
 * Thu Aug 16 2018 Mark Syms <mark.syms@citrix.com> - 2.12.0-1.10.0
 - CA-295665 More problems with relink_chain

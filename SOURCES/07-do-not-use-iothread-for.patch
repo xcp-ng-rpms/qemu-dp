@@ -17,7 +17,7 @@ when detaching.
  1 file changed, 49 insertions(+), 32 deletions(-)
 
 diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
-index 1c15aa98c7..847be9b460 100644
+index 873a1d7a84..4728d5edca 100644
 --- a/hw/block/xen_disk.c
 +++ b/hw/block/xen_disk.c
 @@ -129,9 +129,6 @@ struct XenBlkDev {
@@ -30,7 +30,7 @@ index 1c15aa98c7..847be9b460 100644
  };
  
  /* ------------------------------------------------------------- */
-@@ -603,7 +600,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+@@ -605,7 +602,7 @@ static void qemu_aio_complete(void *opaque, int ret)
      struct ioreq *ioreq = opaque;
      struct XenBlkDev *blkdev = ioreq->blkdev;
  
@@ -39,7 +39,7 @@ index 1c15aa98c7..847be9b460 100644
  
      if (ret != 0) {
          xen_pv_printf(&blkdev->xendev, 0, "%s I/O error\n",
-@@ -667,7 +664,7 @@ static void qemu_aio_complete(void *opaque, int ret)
+@@ -669,7 +666,7 @@ static void qemu_aio_complete(void *opaque, int ret)
      qemu_bh_schedule(blkdev->bh);
  
  done:
@@ -48,7 +48,7 @@ index 1c15aa98c7..847be9b460 100644
  }
  
  static bool blk_split_discard(struct ioreq *ioreq, blkif_sector_t sector_number,
-@@ -925,15 +922,14 @@ static void blk_bh(void *opaque)
+@@ -927,15 +924,14 @@ static void blk_bh(void *opaque)
  {
      struct XenBlkDev *blkdev = opaque;
  
@@ -66,7 +66,7 @@ index 1c15aa98c7..847be9b460 100644
  
      trace_xen_disk_alloc(xendev->name);
  
-@@ -941,12 +937,6 @@ static void blk_alloc(struct XenDevice *xendev)
+@@ -943,12 +939,6 @@ static void blk_alloc(struct XenDevice *xendev)
      QLIST_INIT(&blkdev->finished);
      QLIST_INIT(&blkdev->freelist);
  
@@ -79,7 +79,7 @@ index 1c15aa98c7..847be9b460 100644
      if (xen_mode != XEN_EMULATE) {
          batch_maps = 1;
      }
-@@ -1092,6 +1082,7 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1094,6 +1084,7 @@ static int blk_connect(struct XenDevice *xendev)
      unsigned int ring_size, max_grants;
      unsigned int i;
      uint32_t *domids;
@@ -87,7 +87,7 @@ index 1c15aa98c7..847be9b460 100644
  
      trace_xen_disk_connect(xendev->name);
  
-@@ -1136,16 +1127,23 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1138,16 +1129,23 @@ static int blk_connect(struct XenDevice *xendev)
              error_free(local_err);
              return -1;
          }
@@ -112,7 +112,7 @@ index 1c15aa98c7..847be9b460 100644
          }
          /* blkdev->blk is not create by us, we get a reference
           * so we can blk_unref() unconditionally */
-@@ -1178,7 +1176,7 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1180,7 +1178,7 @@ static int blk_connect(struct XenDevice *xendev)
  
          if (xenstore_read_fe_int(&blkdev->xendev, "ring-ref",
                                   &ring_ref) == -1) {
@@ -121,7 +121,7 @@ index 1c15aa98c7..847be9b460 100644
          }
          blkdev->ring_ref[0] = ring_ref;
  
-@@ -1190,13 +1188,13 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1192,13 +1190,13 @@ static int blk_connect(struct XenDevice *xendev)
  
              key = g_strdup_printf("ring-ref%u", i);
              if (!key) {
@@ -137,7 +137,7 @@ index 1c15aa98c7..847be9b460 100644
              }
              blkdev->ring_ref[i] = ring_ref;
  
-@@ -1205,12 +1203,12 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1207,12 +1205,12 @@ static int blk_connect(struct XenDevice *xendev)
      } else {
          xen_pv_printf(xendev, 0, "invalid ring-page-order: %d\n",
                        order);
@@ -152,7 +152,7 @@ index 1c15aa98c7..847be9b460 100644
      }
      if (xenstore_read_fe_int(&blkdev->xendev, "feature-persistent", &pers)) {
          blkdev->feature_persistent = FALSE;
-@@ -1248,7 +1246,7 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1250,7 +1248,7 @@ static int blk_connect(struct XenDevice *xendev)
          break;
      }
      default:
@@ -161,7 +161,7 @@ index 1c15aa98c7..847be9b460 100644
      }
  
      /* Calculate the maximum number of grants needed by ioreqs */
-@@ -1261,12 +1259,12 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1263,12 +1261,12 @@ static int blk_connect(struct XenDevice *xendev)
      if (blkdev->xendev.gnttabdev == NULL) {
          xen_pv_printf(xendev, 0, "xengnttab_open failed: %s\n",
                        strerror(errno));
@@ -176,7 +176,7 @@ index 1c15aa98c7..847be9b460 100644
      }
  
      domids = g_new0(uint32_t, blkdev->nr_ring_ref);
-@@ -1283,7 +1281,7 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1285,7 +1283,7 @@ static int blk_connect(struct XenDevice *xendev)
      g_free(domids);
  
      if (!blkdev->sring) {
@@ -185,7 +185,7 @@ index 1c15aa98c7..847be9b460 100644
      }
  
      blkdev->cnt_map++;
-@@ -1324,7 +1322,7 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1326,7 +1324,7 @@ static int blk_connect(struct XenDevice *xendev)
          blkdev->persistent_gnt_count = 0;
      }
  
@@ -194,7 +194,7 @@ index 1c15aa98c7..847be9b460 100644
  
      xen_be_bind_evtchn(&blkdev->xendev);
  
-@@ -1332,7 +1330,12 @@ static int blk_connect(struct XenDevice *xendev)
+@@ -1334,7 +1332,12 @@ static int blk_connect(struct XenDevice *xendev)
                    "remote port %d, local port %d\n",
                    blkdev->xendev.protocol, blkdev->nr_ring_ref,
                    blkdev->xendev.remote_port, blkdev->xendev.local_port);
@@ -207,7 +207,7 @@ index 1c15aa98c7..847be9b460 100644
  }
  
  static void blk_disconnect(struct XenDevice *xendev)
-@@ -1341,18 +1344,34 @@ static void blk_disconnect(struct XenDevice *xendev)
+@@ -1343,18 +1346,34 @@ static void blk_disconnect(struct XenDevice *xendev)
  
      trace_xen_disk_disconnect(xendev->name);
  
@@ -247,7 +247,7 @@ index 1c15aa98c7..847be9b460 100644
      if (blkdev->sring) {
          xengnttab_unmap(blkdev->xendev.gnttabdev, blkdev->sring,
                          blkdev->nr_ring_ref);
-@@ -1407,8 +1426,6 @@ static int blk_free(struct XenDevice *xendev)
+@@ -1409,8 +1428,6 @@ static int blk_free(struct XenDevice *xendev)
      g_free(blkdev->type);
      g_free(blkdev->dev);
      g_free(blkdev->devtype);

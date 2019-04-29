@@ -13,7 +13,7 @@ already in flight at the time we started reading the ring.
  1 file changed, 28 insertions(+)
 
 diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
-index 23777457a0..ec6d9372cd 100644
+index 5009da9a91..d0a04bdc4d 100644
 --- a/hw/block/xen_disk.c
 +++ b/hw/block/xen_disk.c
 @@ -131,6 +131,9 @@ struct XenBlkDev {
@@ -26,7 +26,7 @@ index 23777457a0..ec6d9372cd 100644
  /* ------------------------------------------------------------- */
  
  static void ioreq_reset(struct ioreq *ioreq)
-@@ -861,6 +864,8 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
+@@ -863,6 +866,8 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
  {
      RING_IDX rc, rp;
      struct ioreq *ioreq;
@@ -35,7 +35,7 @@ index 23777457a0..ec6d9372cd 100644
  
      blkdev->more_work = 0;
  
-@@ -869,6 +874,15 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
+@@ -871,6 +876,15 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
      xen_rmb(); /* Ensure we see queued requests up to 'rp'. */
  
      blk_send_response_all(blkdev);
@@ -51,7 +51,7 @@ index 23777457a0..ec6d9372cd 100644
      while (rc != rp) {
          /* pull request from ring */
          if (RING_REQUEST_CONS_OVERFLOW(&blkdev->rings.common, rc)) {
-@@ -908,7 +922,21 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
+@@ -910,7 +924,21 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
              continue;
          }
  
