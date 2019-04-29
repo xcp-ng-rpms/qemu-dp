@@ -7,11 +7,11 @@ This doesn't affect the global xen_domid.
 ---
  Makefile                    |   10 +++++++++
  dp-qapi/dp-qapi-schema.json |    1 +
- dp-qapi/xen.json            |   19 +++++++++++++++++
- hw/block/xen_disk.c         |   14 ++++++++++++-
- hw/xen/xen_backend.c        |   47 ++++++++++++++++++++++++++++++++++++++++++-
+ dp-qapi/xen.json            |   19 ++++++++++++++++
+ hw/block/xen_disk.c         |   14 +++++++++++-
+ hw/xen/xen_backend.c        |   50 ++++++++++++++++++++++++++++++++++++++++++-
  include/hw/xen/xen_pvdev.h  |    3 +++
- 6 files changed, 92 insertions(+), 2 deletions(-)
+ 6 files changed, 95 insertions(+), 2 deletions(-)
  create mode 100644 dp-qapi/xen.json
 
 diff --git a/Makefile b/Makefile
@@ -178,7 +178,7 @@ index f74fcd42d1..873a1d7a84 100644
          if (!blkdev->blk) {
              xen_pv_printf(&blkdev->xendev, 0, "error: %s\n",
 diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
-index dec43da147..3a5a2a2069 100644
+index dec43da147..a2ab125402 100644
 --- a/hw/xen/xen_backend.c
 +++ b/hw/xen/xen_backend.c
 @@ -33,6 +33,9 @@
@@ -227,7 +227,7 @@ index dec43da147..3a5a2a2069 100644
  static void xenbe_register_types(void)
  {
      type_register_static(&xensysbus_info);
-@@ -704,4 +720,33 @@ static void xenbe_register_types(void)
+@@ -704,4 +720,36 @@ static void xenbe_register_types(void)
      type_register_static(&xendev_type_info);
  }
  
@@ -256,6 +256,9 @@ index dec43da147..3a5a2a2069 100644
 +    }
 +    xendev->blocknode = g_strdup(blocknode);
 +    xendev->devicename = g_strdup(devicename);
++    /* Set the global xen_domid variable to the domid we are given, because
++     * subsequent patches need this */
++    xen_domid = domid;
 +    xen_be_check_state(xendev);
 +}
 +#endif

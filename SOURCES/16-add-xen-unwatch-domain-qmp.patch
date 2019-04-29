@@ -34,11 +34,11 @@ index 5d4e081548..6f1864c022 100644
 +  'data': { 'domid': 'int', 'devid': 'int', 'type': 'str' } }
 +
 diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
-index 4065ea72e4..843decfd6e 100644
+index a2ab125402..e1e77049f6 100644
 --- a/hw/xen/xen_backend.c
 +++ b/hw/xen/xen_backend.c
-@@ -771,6 +771,12 @@ void qmp_xen_watch_device(int64_t domid, int64_t devid, const char *type, const
-     xendev->devicename = g_strdup(devicename);
+@@ -750,6 +750,12 @@ void qmp_xen_watch_device(int64_t domid, int64_t devid, const char *type, const
+     xen_domid = domid;
      xen_be_check_state(xendev);
  }
 +

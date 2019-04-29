@@ -1,0 +1,24 @@
+Flush all block drivers on exit
+
+From: Tim Smith <tim.smith@citrix.com>
+
+bdrv_close_all() does not flush all block drivers. For safety
+we need to make sure we do this.
+---
+ qemu-dp.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/qemu-dp.c b/qemu-dp.c
+index 212961630f..751a82931f 100644
+--- a/qemu-dp.c
++++ b/qemu-dp.c
+@@ -153,6 +153,9 @@ int main(int argc, char **argv)
+ 
+ // Dropped in 4486e89c219c0d1b9bd8dfa0b1dd5b0d51ff2268
+ //     iothread_stop_all();
++    bdrv_drain_all_begin();
++    bdrv_flush_all();
++    bdrv_drain_all_end();
+     bdrv_close_all();
+     dp_monitor_destroy();
+     qemu_chr_cleanup();

@@ -1,0 +1,86 @@
+Avoid trying to clean an empty cache
+
+From: Tim Smith <tim.smith@citrix.com>
+
+Detect the case of trying to clean an empty cache and
+turn it into a no-op. This requires that all calls to
+qcow2_cache_destroy() make sure to NULL the pointer
+they just destroyed.
+
+Signed-off-by: Tim Smith <tim.smith@citrix.com>
+---
+ block/qcow2-cache.c |    3 +++
+ block/qcow2.c       |    8 ++++++++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/block/qcow2-cache.c b/block/qcow2-cache.c
+index a62650f30e..d21cc3a6f4 100644
+--- a/block/qcow2-cache.c
++++ b/block/qcow2-cache.c
+@@ -96,6 +96,8 @@ static inline bool can_clean_entry(Qcow2Cache *c, int i)
+ void qcow2_cache_clean_unused(Qcow2Cache *c)
+ {
+     int i = 0;
++
++    if (!c) return;
+     while (i < c->size) {
+         int to_clean = 0;
+ 
+@@ -153,6 +155,7 @@ int qcow2_cache_destroy(Qcow2Cache *c)
+ {
+     int i;
+ 
++    if (!c) return 0;
+     for (i = 0; i < c->size; i++) {
+         assert(c->entries[i].ref == 0);
+     }
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 14bdf0b52e..b9d0a3cef7 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -1089,9 +1089,11 @@ static void qcow2_update_options_commit(BlockDriverState *bs,
+ 
+     if (s->l2_table_cache) {
+         qcow2_cache_destroy(s->l2_table_cache);
++        s->l2_table_cache = NULL;
+     }
+     if (s->refcount_block_cache) {
+         qcow2_cache_destroy(s->refcount_block_cache);
++        s->refcount_block_cache = NULL;
+     }
+     s->l2_table_cache = r->l2_table_cache;
+     s->refcount_block_cache = r->refcount_block_cache;
+@@ -1119,9 +1121,11 @@ static void qcow2_update_options_abort(BlockDriverState *bs,
+ {
+     if (r->l2_table_cache) {
+         qcow2_cache_destroy(r->l2_table_cache);
++        r->l2_table_cache = NULL;
+     }
+     if (r->refcount_block_cache) {
+         qcow2_cache_destroy(r->refcount_block_cache);
++        r->refcount_block_cache = NULL;
+     }
+     qapi_free_QCryptoBlockOpenOptions(r->crypto_opts);
+ }
+@@ -1561,9 +1565,11 @@ static int coroutine_fn qcow2_do_open(BlockDriverState *bs, QDict *options,
+     cache_clean_timer_del(bs);
+     if (s->l2_table_cache) {
+         qcow2_cache_destroy(s->l2_table_cache);
++        s->l2_table_cache = NULL;
+     }
+     if (s->refcount_block_cache) {
+         qcow2_cache_destroy(s->refcount_block_cache);
++        s->refcount_block_cache = NULL;
+     }
+     qcrypto_block_free(s->crypto);
+     qapi_free_QCryptoBlockOpenOptions(s->crypto_opts);
+@@ -2151,7 +2157,9 @@ static void qcow2_close(BlockDriverState *bs)
+ 
+     cache_clean_timer_del(bs);
+     qcow2_cache_destroy(s->l2_table_cache);
++    s->l2_table_cache = NULL;
+     qcow2_cache_destroy(s->refcount_block_cache);
++    s->refcount_block_cache = NULL;
+ 
+     qcrypto_block_free(s->crypto);
+     s->crypto = NULL;

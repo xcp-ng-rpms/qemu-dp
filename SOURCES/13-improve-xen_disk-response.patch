@@ -15,7 +15,7 @@ To alleviate that, complete IO requests as soon as they come back.
  1 file changed, 16 insertions(+), 31 deletions(-)
 
 diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
-index ec6d9372cd..ddbb2460ba 100644
+index d0a04bdc4d..fc6fb3d793 100644
 --- a/hw/block/xen_disk.c
 +++ b/hw/block/xen_disk.c
 @@ -110,11 +110,9 @@ struct XenBlkDev {
@@ -65,7 +65,7 @@ index ec6d9372cd..ddbb2460ba 100644
  }
  
  /*
-@@ -664,6 +657,16 @@ static void qemu_aio_complete(void *opaque, int ret)
+@@ -666,6 +659,16 @@ static void qemu_aio_complete(void *opaque, int ret)
      default:
          break;
      }
@@ -82,7 +82,7 @@ index ec6d9372cd..ddbb2460ba 100644
      qemu_bh_schedule(blkdev->bh);
  
  done:
-@@ -774,7 +777,7 @@ err:
+@@ -776,7 +779,7 @@ err:
      return -1;
  }
  
@@ -91,7 +91,7 @@ index ec6d9372cd..ddbb2460ba 100644
  {
      struct XenBlkDev  *blkdev = ioreq->blkdev;
      int               send_notify   = 0;
-@@ -823,22 +826,6 @@ static int blk_send_response_one(struct ioreq *ioreq)
+@@ -825,22 +828,6 @@ static int blk_send_response_one(struct ioreq *ioreq)
      return send_notify;
  }
  
@@ -114,7 +114,7 @@ index ec6d9372cd..ddbb2460ba 100644
  static int blk_get_request(struct XenBlkDev *blkdev, struct ioreq *ioreq, RING_IDX rc)
  {
      switch (blkdev->protocol) {
-@@ -873,7 +860,6 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
+@@ -875,7 +862,6 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
      rp = blkdev->rings.common.sring->req_prod;
      xen_rmb(); /* Ensure we see queued requests up to 'rp'. */
  
@@ -122,7 +122,7 @@ index ec6d9372cd..ddbb2460ba 100644
      /* If there was more than one ioreq in flight when we got here, this
       * is an indication that there the bottleneck is below us, so it's worth
       * beginning to batch up I/O requests rather than submitting them
-@@ -915,10 +901,10 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
+@@ -917,10 +903,10 @@ static void blk_handle_requests(struct XenBlkDev *blkdev)
                  break;
              };
  
@@ -135,7 +135,7 @@ index ec6d9372cd..ddbb2460ba 100644
              continue;
          }
  
-@@ -962,7 +948,6 @@ static void blk_alloc(struct XenDevice *xendev)
+@@ -964,7 +950,6 @@ static void blk_alloc(struct XenDevice *xendev)
      trace_xen_disk_alloc(xendev->name);
  
      QLIST_INIT(&blkdev->inflight);

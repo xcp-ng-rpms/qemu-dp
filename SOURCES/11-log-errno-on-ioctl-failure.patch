@@ -8,10 +8,10 @@ From: Tim Smith <tim.smith@citrix.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
-index 847be9b460..23777457a0 100644
+index 4728d5edca..5009da9a91 100644
 --- a/hw/block/xen_disk.c
 +++ b/hw/block/xen_disk.c
-@@ -559,7 +559,7 @@ static int ioreq_grant_copy(struct ioreq *ioreq)
+@@ -561,7 +561,7 @@ static int ioreq_grant_copy(struct ioreq *ioreq)
  
      if (rc) {
          xen_pv_printf(&ioreq->blkdev->xendev, 0,

@@ -15,9 +15,8 @@ our own options dictionary we can avoid confusing bdrv_open().
  block.c                |    2 ++
  block/qcow2-cache.c    |    1 +
  block/qcow2-refcount.c |    4 ++--
- block/qcow2.c          |    4 ++++
  blockdev.c             |   21 ++++++++++++++++++---
- 5 files changed, 27 insertions(+), 5 deletions(-)
+ 4 files changed, 23 insertions(+), 5 deletions(-)
 
 diff --git a/block.c b/block.c
 index 0d7199432d..86d16150bd 100644
@@ -66,21 +65,6 @@ index 6b8b63514a..a8f2c4d387 100644
      int ret;
  
      /* We can't allocate clusters if they may still be queued for discard. */
-diff --git a/block/qcow2.c b/block/qcow2.c
-index 829241436a..82c276f0b2 100644
---- a/block/qcow2.c
-+++ b/block/qcow2.c
-@@ -727,6 +727,10 @@ static void cache_clean_timer_cb(void *opaque)
- {
-     BlockDriverState *bs = opaque;
-     BDRVQcow2State *s = bs->opaque;
-+    if (s == NULL) {
-+        printf("--> cache_clean_timer_cb(NULL STATE)\n");
-+        return;
-+    }
-     qcow2_cache_clean_unused(s->l2_table_cache);
-     qcow2_cache_clean_unused(s->refcount_block_cache);
-     timer_mod(s->cache_clean_timer, qemu_clock_get_ms(CACHE_CLEAN_CLOCK) +
 diff --git a/blockdev.c b/blockdev.c
 index e26c1e4e04..538d685c63 100644
 --- a/blockdev.c

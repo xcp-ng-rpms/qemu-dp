@@ -17,7 +17,7 @@ should actually improve memory usage.
  1 file changed, 5 insertions(+), 6 deletions(-)
 
 diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
-index ddbb2460ba..d184934c02 100644
+index fc6fb3d793..f68c75887a 100644
 --- a/hw/block/xen_disk.c
 +++ b/hw/block/xen_disk.c
 @@ -147,7 +147,6 @@ static void ioreq_reset(struct ioreq *ioreq)
@@ -65,7 +65,7 @@ index ddbb2460ba..d184934c02 100644
      for (i = 0; i < ioreq->v.niov; i++) {
          ioreq->page[i] = ioreq->pages + i * XC_PAGE_SIZE;
          ioreq->v.iov[i].iov_base = ioreq->page[i];
-@@ -1431,6 +1429,7 @@ static int blk_free(struct XenDevice *xendev)
+@@ -1433,6 +1431,7 @@ static int blk_free(struct XenDevice *xendev)
          ioreq = QLIST_FIRST(&blkdev->freelist);
          QLIST_REMOVE(ioreq, list);
          qemu_iovec_destroy(&ioreq->v);
