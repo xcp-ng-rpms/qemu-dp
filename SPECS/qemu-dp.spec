@@ -2,7 +2,7 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 2.0.3
+Release: 2.0.4
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
@@ -37,9 +37,10 @@ Patch23: 24-avoid-trying-to-clean-an-empty.patch
 Patch24: 25-flush-all-block-drivers-on.patch
 Patch25: 26-speed-up-nbd_cmd_block_status.patch
 Patch26: 27-limit-logging-of-ioreq_parse.patch
+Patch27: CA-320100__drain_pv_ring_on_unwatch
 
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.4#/qemu.patches.tar) = 19ea79b9072b24d108c0a99fccfd48f97ad43eea
 Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz) = 0e87fdc966d05f4e5ad868034fcd8ee2a08ca62d
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.3#/qemu.patches.tar) = 891e3b43dc7c33ac6862406e83f973ea595bf4de
 
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
@@ -83,6 +84,9 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{_libdir}/qemu-dp/bin
 
 %changelog
+* Mon Jun  3 2019 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.4
+- Drain the PV ring as part of unwatch
+
 * Fri Apr 05 2019 Tim Smith <tim.smith@citrix.com> - 2:2.12.0-2.0.3
 - CA-314386 limit ioreq_parse() errors to avoid log storm
 
