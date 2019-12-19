@@ -1,0 +1,15 @@
+diff --git a/hw/block/xen_disk.c b/hw/block/xen_disk.c
+index d184934..bcee18c 100644
+--- a/hw/block/xen_disk.c
++++ b/hw/block/xen_disk.c
+@@ -1359,6 +1359,10 @@ static void blk_disconnect(struct XenDevice *xendev)
+         AioContext *ctx = blk_get_aio_context(blkdev->blk);
+         BlockDriverState *bs = blk_bs(blkdev->blk);
+ 
++        do {
++            blk_handle_requests(blkdev);
++        } while (blkdev->more_work);
++
+         aio_context_acquire(ctx);
+ 
+         if (bs) {
