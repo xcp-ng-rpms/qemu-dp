@@ -2,7 +2,7 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 2.0.4
+Release: 2.0.5
 License: GPL
 Requires: jemalloc
 Requires: xs-clipboardd
@@ -38,14 +38,16 @@ Patch24: 25-flush-all-block-drivers-on.patch
 Patch25: 26-speed-up-nbd_cmd_block_status.patch
 Patch26: 27-limit-logging-of-ioreq_parse.patch
 Patch27: CA-320100__drain_pv_ring_on_unwatch
+Patch28: backport_query_anonymous_BBs
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.4#/qemu.patches.tar) = 19ea79b9072b24d108c0a99fccfd48f97ad43eea
 Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz) = 0e87fdc966d05f4e5ad868034fcd8ee2a08ca62d
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.5#/qemu.patches.tar) = c27e9fbb920e7c2d9b3e513be2d4a2d465c43caa
 
 BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel zlib-devel
+%{?_cov_buildrequires}
 
 %description
 This package contains Qemu, but builds only tools and a limited qemu-dp which handles
@@ -53,8 +55,10 @@ the storage datapath.
 
 %prep
 %autosetup -p1
+%{?_cov_prepare}
 
 %build
+%{?_cov_make_model:%{_cov_make_model scripts/coverity-model.c}}
 ./configure --cc=gcc --cxx=/dev/null --enable-xen --target-list=i386-softmmu --source-path=. \
     --prefix=%{_prefix} --bindir=%{_libdir}/qemu-dp/bin --datadir=%{_datarootdir} \
     --localstatedir=%{_localstatedir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
@@ -67,7 +71,7 @@ the storage datapath.
     --disable-replication --disable-qom-cast-debug --disable-slirp \
     --audio-drv-list= --disable-live-block-migration \
     --enable-seccomp --enable-qemudp
-%{?cov_wrap} %{__make} %{?_smp_mflags} V=1 all
+%{?_cov_wrap} %{__make} %{?_smp_mflags} V=1 all
 
 %install
 mkdir -p %{buildroot}%{_libdir}/qemu-dp/bin
@@ -78,12 +82,18 @@ rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_
        %{buildroot}/usr/share/locale %{buildroot}%{_datarootdir} %{buildroot}%{_libexecdir} \
        %{buildroot}%{_libdir}/qemu-dp/bin/ivshmem-* %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386
 install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-tracing"
+%{?_cov_install}
 
 %files
 %dir %{_libdir}/qemu-dp/
 %{_libdir}/qemu-dp/bin
 
+%{?_cov_results_package}
+
 %changelog
+* Fri Mar 13 2020 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.5
+- CP-33183: Backport "block/qapi: Include anonymous BBs in query-blockstats"
+
 * Mon Jun  3 2019 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.4
 - Drain the PV ring as part of unwatch
 
