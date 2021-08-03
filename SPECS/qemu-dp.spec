@@ -2,7 +2,7 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 2.0.5%{?dist}
+Release: 2.0.5.runx.1%{?dist}
 License: GPL
 Requires: jemalloc
 Requires: xcp-clipboardd
@@ -39,6 +39,7 @@ Patch25: 26-speed-up-nbd_cmd_block_status.patch
 Patch26: 27-limit-logging-of-ioreq_parse.patch
 Patch27: CA-320100__drain_pv_ring_on_unwatch
 Patch28: backport_query_anonymous_BBs
+Patch29: 0001-qmp_xen_watch_device-support-9pfs.patch
 
 Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz) = 0e87fdc966d05f4e5ad868034fcd8ee2a08ca62d
 Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.5#/qemu.patches.tar) = c27e9fbb920e7c2d9b3e513be2d4a2d465c43caa
@@ -48,6 +49,7 @@ BuildRequires: libaio-devel glib2-devel
 BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
 BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
 BuildRequires: libseccomp-devel zlib-devel
+BuildRequires: libcap-devel libattr-devel
 %{?_cov_buildrequires}
 
 %description
@@ -68,10 +70,10 @@ the storage datapath.
     --disable-curses --disable-curl --disable-gtk --disable-bzip2 \
     --disable-strip --disable-gnutls --disable-nettle --disable-gcrypt \
     --disable-vhost-net --disable-vhost-scsi --disable-vhost-vsock --disable-vhost-user \
-    --disable-lzo --disable-tpm --disable-virtfs --disable-tcg --disable-tcg-interpreter \
+    --disable-lzo --disable-tpm --disable-tcg --disable-tcg-interpreter \
     --disable-replication --disable-qom-cast-debug --disable-slirp \
     --audio-drv-list= --disable-live-block-migration \
-    --enable-seccomp --enable-qemudp
+    --enable-seccomp --enable-qemudp --enable-virtfs
 %{?_cov_wrap} %{__make} %{?_smp_mflags} V=1 all
 
 %install
@@ -92,6 +94,9 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{?_cov_results_package}
 
 %changelog
+* Tue Aug 03 2021 Ronan Abhamon <ronan.abhamon@vates.fr> - 2.12.0-2.0.5.runx.1
+- Add 0001-qmp_xen_watch_device-support-9pfs.patch
+
 * Fri Mar 13 2020 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.5
 - CP-33183: Backport "block/qapi: Include anonymous BBs in query-blockstats"
 
