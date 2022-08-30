@@ -1,0 +1,61 @@
+Do not register general Xen backends in QEMUDP build
+
+From: Tim Smith <tim.smith@citrix.com>
+
+
+diff --git a/hw/char/Makefile.objs b/hw/char/Makefile.objs
+index 1b979100b7..a57232c43d 100644
+--- a/hw/char/Makefile.objs
++++ b/hw/char/Makefile.objs
+@@ -8,7 +8,9 @@ common-obj-$(CONFIG_SERIAL_ISA) += serial-isa.o
+ common-obj-$(CONFIG_SERIAL_PCI) += serial-pci.o
+ common-obj-$(CONFIG_VIRTIO) += virtio-console.o
+ common-obj-$(CONFIG_XILINX) += xilinx_uartlite.o
++ifneq (y,$(CONFIG_QEMUDP))
+ common-obj-$(CONFIG_XEN) += xen_console.o
++endif
+ common-obj-$(CONFIG_CADENCE) += cadence_uart.o
+ 
+ obj-$(CONFIG_EXYNOS4) += exynos4210_uart.o
+diff --git a/hw/display/Makefile.objs b/hw/display/Makefile.objs
+index 3c7c75b94d..d5fd06bde9 100644
+--- a/hw/display/Makefile.objs
++++ b/hw/display/Makefile.objs
+@@ -6,7 +6,9 @@ common-obj-$(CONFIG_PL110) += pl110.o
+ common-obj-$(CONFIG_SII9022) += sii9022.o
+ common-obj-$(CONFIG_SSD0303) += ssd0303.o
+ common-obj-$(CONFIG_SSD0323) += ssd0323.o
++ifneq (y,$(CONFIG_QEMUDP))
+ common-obj-$(CONFIG_XEN) += xenfb.o
++endif
+ 
+ common-obj-$(CONFIG_VGA_PCI) += vga-pci.o
+ common-obj-$(CONFIG_VGA_ISA) += vga-isa.o
+diff --git a/hw/net/Makefile.objs b/hw/net/Makefile.objs
+index ab22968641..fabb7217dc 100644
+--- a/hw/net/Makefile.objs
++++ b/hw/net/Makefile.objs
+@@ -1,5 +1,7 @@
+ common-obj-$(CONFIG_DP8393X) += dp8393x.o
++ifneq (y,$(CONFIG_QEMUDP))
+ common-obj-$(CONFIG_XEN) += xen_nic.o
++endif
+ 
+ # PCI network cards
+ common-obj-$(CONFIG_NE2000_PCI) += ne2000.o
+diff --git a/hw/xen/xen_backend.c b/hw/xen/xen_backend.c
+index d84cc44f10..fe07714d79 100644
+--- a/hw/xen/xen_backend.c
++++ b/hw/xen/xen_backend.c
+@@ -598,9 +598,11 @@ void xen_be_register_common(void)
+      xen_set_dynamic_sysbus();
+ #endif
+ 
++#ifndef CONFIG_QEMUDP
+     xen_be_register("console", &xen_console_ops);
+     xen_be_register("vkbd", &xen_kbdmouse_ops);
+     xen_be_register("qdisk", &xen_blkdev_ops);
++#endif
+ #ifdef CONFIG_VIRTFS
+     xen_be_register("9pfs", &xen_9pfs_ops);
+ #endif

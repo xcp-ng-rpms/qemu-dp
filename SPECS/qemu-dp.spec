@@ -1,51 +1,52 @@
+%global package_speccommit 70b2940b038dbb66bae0f7fee55236ca2eb6d138
+%global usver 2.12.0
+%global xsver 2.0.12
+%global xsrel %{xsver}%{?xscount}%{?xshash}
+%global package_srccommit v2.12.0-rc2
 Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 2.12.0
-Release: 2.0.5
+Release: %{?xsrel}%{?dist}
 License: GPL
 Requires: jemalloc
-Requires: xs-clipboardd
 Requires: kernel >= 4.19.19-5.0.0
-
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz
-
-Patch0: 01-make-a-qemu-dp-build.patch
-Patch1: 02-do-not-register-xen-backend.patch
-Patch2: 03-added-xen-watch-domain-qmp.patch
-Patch3: 04-make-blockdev-snapshot-use.patch
-Patch4: 05-send-stdout-and-stderr-to.patch
-Patch5: 06-add-a-trace-file-to-control.patch
-Patch6: 07-do-not-use-iothread-for.patch
-Patch7: 08-remove-unwanted-crypto.patch
-Patch8: 09-use-libaio-by-default-and.patch
-Patch9: 10-add-qmp_relink_chain-command.patch
-Patch10: 11-log-errno-on-ioctl-failure.patch
-Patch11: 12-improve-xen_disk-batching.patch
-Patch12: 13-improve-xen_disk-response.patch
-Patch13: 14-adjust-qcow2-default-cache.patch
-Patch14: 15-avoid-repeated-memory.patch
-Patch15: 16-add-xen-unwatch-domain-qmp.patch
-Patch16: 17-detach-aio-context-before-bs-free.patch
-Patch17: 18-fix-file-and-filename.patch
-Patch18: 19-xen-add-a-meaningful.patch
-Patch19: 20-xen_backend-add-grant-table.patch
-Patch20: 21-xen_disk-remove-open-coded-use.patch
-Patch21: 22-xen_backend-add-an-emulation.patch
-Patch22: 23-xen_disk-remove-use-of-grant.patch
-Patch23: 24-avoid-trying-to-clean-an-empty.patch
-Patch24: 25-flush-all-block-drivers-on.patch
-Patch25: 26-speed-up-nbd_cmd_block_status.patch
-Patch26: 27-limit-logging-of-ioreq_parse.patch
-Patch27: CA-320100__drain_pv_ring_on_unwatch
-Patch28: backport_query_anonymous_BBs
-
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/qemu-dp/archive?at=v2.12.0-rc2&format=tar.gz&prefix=qemu-dp-2.12.0#/qemu-dp-2.12.0.tar.gz) = 0e87fdc966d05f4e5ad868034fcd8ee2a08ca62d
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XS/repos/qemu-dp.pg/archive?format=tar&at=v2.0.5#/qemu.patches.tar) = c27e9fbb920e7c2d9b3e513be2d4a2d465c43caa
-
+Source0: qemu-dp-2.12.0.tar.gz
+Patch0: update_coverity_model
+Patch1: 01-make-a-qemu-dp-build.patch
+Patch2: 02-do-not-register-xen-backends.patch
+Patch3: 03-added-xen-watch-domain-qmp.patch
+Patch4: 04-make-blockdev-snapshot-use.patch
+Patch5: 05-send-stdout-and-stderr-to.patch
+Patch6: 06-add-a-trace-file-to-control.patch
+Patch7: 07-do-not-use-iothread-for.patch
+Patch8: 08-remove-unwanted-crypto.patch
+Patch9: 09-use-libaio-by-default-and.patch
+Patch10: 10-add-qmp_relink_chain-command.patch
+Patch11: 11-log-errno-on-ioctl-failure.patch
+Patch12: 12-improve-xen_disk-batching.patch
+Patch13: 13-improve-xen_disk-response.patch
+Patch14: 14-adjust-qcow2-default-cache.patch
+Patch15: 15-avoid-repeated-memory.patch
+Patch16: 16-add-xen-unwatch-domain-qmp.patch
+Patch17: 17-detach-aio-context-before-bs-free.patch
+Patch18: 18-fix-file-and-filename.patch
+Patch19: 19-xen-add-a-meaningful.patch
+Patch20: 20-xen_backend-add-grant-table.patch
+Patch21: 21-xen_disk-remove-open-coded-use.patch
+Patch22: 22-xen_backend-add-an-emulation.patch
+Patch23: 23-xen_disk-remove-use-of-grant.patch
+Patch24: 24-avoid-trying-to-clean-an-empty.patch
+Patch25: 25-flush-all-block-drivers-on.patch
+Patch26: 26-speed-up-nbd_cmd_block_status.patch
+Patch27: 27-limit-logging-of-ioreq_parse.patch
+Patch28: CA-320100__drain_pv_ring_on_unwatch
+Patch29: backport_query_anonymous_BBs
+Patch30: no-dom0-libs.patch
 BuildRequires: libaio-devel glib2-devel
-BuildRequires: libjpeg-devel libpng-devel pixman-devel libdrm-devel
-BuildRequires: xen-dom0-devel xen-libs-devel libusbx-devel
+# This doesn't look like it should be necessary but the configure isn't clever enough to not require it
+BuildRequires: pixman-devel
+BuildRequires: xen-libs-devel
 BuildRequires: libseccomp-devel zlib-devel
 %{?_cov_buildrequires}
 
@@ -60,7 +61,7 @@ the storage datapath.
 %build
 %{?_cov_make_model:%{_cov_make_model scripts/coverity-model.c}}
 ./configure --cc=gcc --cxx=/dev/null --enable-xen --target-list=i386-softmmu --source-path=. \
-    --prefix=%{_prefix} --bindir=%{_libdir}/qemu-dp/bin --datadir=%{_datarootdir} \
+    --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{_libdir}/qemu-dp/bin --datadir=%{_datarootdir} \
     --localstatedir=%{_localstatedir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
     --enable-werror --enable-libusb --enable-trace-backend=syslog \
     --disable-kvm --disable-docs --disable-guest-agent --disable-sdl \
@@ -70,6 +71,7 @@ the storage datapath.
     --disable-lzo --disable-tpm --disable-virtfs --disable-tcg --disable-tcg-interpreter \
     --disable-replication --disable-qom-cast-debug --disable-slirp \
     --audio-drv-list= --disable-live-block-migration \
+    --disable-libusb \
     --enable-seccomp --enable-qemudp
 %{?_cov_wrap} %{__make} %{?_smp_mflags} V=1 all
 
@@ -91,7 +93,29 @@ install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-traci
 %{?_cov_results_package}
 
 %changelog
-* Fri Mar 13 2020 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.5
+* Wed Nov 17 2021 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.12
+- Rebuild
+
+* Tue Mar 30 2021 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.11
+- Reduce dependencies on Xen libraries
+
+* Tue Dec  8 2020 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.10
+- Configure static analysis
+
+* Wed Nov 25 2020 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.9
+- Rebase koji build
+
+* Thu Nov  5 2020 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.8
+- Remove unnecessary BuildRequires
+
+* Wed Sep 16 2020 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.7
+- CP-34899: Update coverity model with g_hash_table_insert
+- CP-34899: Add g_array_append_vals to model
+
+* Thu Jul  2 2020 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.6
+- Remove unnecessary Xen dependencies
+
+* Fri Mar 13 2020 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.5
 - CP-33183: Backport "block/qapi: Include anonymous BBs in query-blockstats"
 
 * Mon Jun  3 2019 Mark Syms <mark.syms@citrix.com> - 2:2.12.0-2.0.4
