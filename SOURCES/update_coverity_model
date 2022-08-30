@@ -1,0 +1,39 @@
+Update coverity model to support glib data structures
+
+  * g_hashtable_insert
+  * g_array_append_vals
+
+Signed-off-by: Mark Syms <mark.syms@citrix.com>
+diff --git a/scripts/coverity-model.c b/scripts/coverity-model.c
+index c702804..1d93b38 100644
+--- a/scripts/coverity-model.c
++++ b/scripts/coverity-model.c
+@@ -349,6 +349,28 @@ char *g_strconcat(const char *s, ...)
+     return s;
+ }
+ 
++/*
++ * Glib data structure functions
++ */
++typedef bool gboolean;
++typedef void* gpointer;
++typedef struct GHashTable GHashTable;
++gboolean g_hash_table_insert(GHashTable *tbl, gpointer key, gpointer value)
++{
++    __coverity_escape__(value);
++}
++
++typedef const void* gconstpointer;
++typedef unsigned int guint;
++typedef struct GArray GArray;
++GArray* g_array_append_vals       (GArray           *array,
++                                   gconstpointer     data,
++                                   guint             len)
++{
++    __coverity_escape__(data);
++}
++
++
+ /* Other glib functions */
+ 
+ typedef struct pollfd GPollFD;
