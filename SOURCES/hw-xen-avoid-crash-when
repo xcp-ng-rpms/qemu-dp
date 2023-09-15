@@ -1,0 +1,56 @@
+hw/xen: Avoid crash when backend watch fires too early
+
+From: Paul Durrant <pdurrant@amazon.com>
+
+The xen-block code ends up calling aio_poll() through blkconf_geometry(),
+which means we see watch events during the indirect call to
+xendev_class->realize() in xen_device_realize(). Unfortunately this call
+is made before populating the initial frontend and backend device nodes
+in xenstore and hence xen_block_frontend_changed() (which is called from
+a watch event) fails to read the frontend's 'state' node, and hence
+believes the device is being torn down. This in-turn sets the backend
+state to XenbusStateClosed and causes the device to be deleted before it
+is fully set up, leading to the crash.
+By simply moving the call to xendev_class->realize() after the initial
+xenstore nodes are populated, this sorry state of affairs is avoided.
+
+Reported-by: David Woodhouse <dwmw@amazon.co.uk>
+Signed-off-by: Paul Durrant <pdurrant@amazon.com>
+Signed-off-by: David Woodhouse <dwmw@amazon.co.uk>
+Reviewed-by: Paul Durrant <paul@xen.org>
+---
+ hw/xen/xen-bus.c |   14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/hw/xen/xen-bus.c b/hw/xen/xen-bus.c
+index 645a29a5a0..19f20c6608 100644
+--- a/hw/xen/xen-bus.c
++++ b/hw/xen/xen-bus.c
+@@ -1316,13 +1316,6 @@ static void xen_device_realize(DeviceState *dev, Error **errp)
+         goto unrealize;
+     }
+ 
+-    if (xendev_class->realize) {
+-        xendev_class->realize(xendev, errp);
+-        if (*errp) {
+-            goto unrealize;
+-        }
+-    }
+-
+     xen_device_backend_printf(xendev, "frontend", "%s",
+                               xendev->frontend_path);
+     xen_device_backend_printf(xendev, "frontend-id", "%u",
+@@ -1341,6 +1334,13 @@ static void xen_device_realize(DeviceState *dev, Error **errp)
+         xen_device_frontend_set_state(xendev, XenbusStateInitialising, true);
+     }
+ 
++    if (xendev_class->realize) {
++        xendev_class->realize(xendev, errp);
++        if (*errp) {
++            goto unrealize;
++        }
++    }
++
+     xendev->exit.notify = xen_device_exit;
+     qemu_add_exit_notifier(&xendev->exit);
+     return;

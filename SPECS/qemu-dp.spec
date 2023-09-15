@@ -1,53 +1,44 @@
-%global package_speccommit 70b2940b038dbb66bae0f7fee55236ca2eb6d138
-%global usver 2.12.0
-%global xsver 2.0.12
+%global package_speccommit f10fdd82ff00e62721cd1d10389b6650da37842f
+%global usver 7.0.0
+%global xsver 8
 %global xsrel %{xsver}%{?xscount}%{?xshash}
-%global package_srccommit v2.12.0-rc2
+%global package_srccommit v7.0.0
+
+# submodule ui/keycodemapdb
+%define keycodemapdb_cset e15649b83a78f89f57205927022115536d2c1698
+%define keycodemapdb_path ui/keycodemapdb
+
 Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
-Version: 2.12.0
+Version: 7.0.0
 Release: %{?xsrel}%{?dist}
 License: GPL
 Requires: jemalloc
 Requires: kernel >= 4.19.19-5.0.0
-Source0: qemu-dp-2.12.0.tar.gz
-Patch0: update_coverity_model
-Patch1: 01-make-a-qemu-dp-build.patch
-Patch2: 02-do-not-register-xen-backends.patch
-Patch3: 03-added-xen-watch-domain-qmp.patch
-Patch4: 04-make-blockdev-snapshot-use.patch
-Patch5: 05-send-stdout-and-stderr-to.patch
-Patch6: 06-add-a-trace-file-to-control.patch
-Patch7: 07-do-not-use-iothread-for.patch
-Patch8: 08-remove-unwanted-crypto.patch
-Patch9: 09-use-libaio-by-default-and.patch
-Patch10: 10-add-qmp_relink_chain-command.patch
-Patch11: 11-log-errno-on-ioctl-failure.patch
-Patch12: 12-improve-xen_disk-batching.patch
-Patch13: 13-improve-xen_disk-response.patch
-Patch14: 14-adjust-qcow2-default-cache.patch
-Patch15: 15-avoid-repeated-memory.patch
-Patch16: 16-add-xen-unwatch-domain-qmp.patch
-Patch17: 17-detach-aio-context-before-bs-free.patch
-Patch18: 18-fix-file-and-filename.patch
-Patch19: 19-xen-add-a-meaningful.patch
-Patch20: 20-xen_backend-add-grant-table.patch
-Patch21: 21-xen_disk-remove-open-coded-use.patch
-Patch22: 22-xen_backend-add-an-emulation.patch
-Patch23: 23-xen_disk-remove-use-of-grant.patch
-Patch24: 24-avoid-trying-to-clean-an-empty.patch
-Patch25: 25-flush-all-block-drivers-on.patch
-Patch26: 26-speed-up-nbd_cmd_block_status.patch
-Patch27: 27-limit-logging-of-ioreq_parse.patch
-Patch28: CA-320100__drain_pv_ring_on_unwatch
-Patch29: backport_query_anonymous_BBs
-Patch30: no-dom0-libs.patch
-BuildRequires: libaio-devel glib2-devel
+Source0: qemu-dp-7.0.0.tar.gz
+Source1: keycodemapdb-e15649b83a78f89f57205927022115536d2c1698.tar.gz
+Patch0: hw-xen-avoid-crash-when
+Patch1: ensure_ring_drained_on_stop
+Patch2: increase-size-of-node_name
+Patch3: include_sched_h
+Patch4: add-service-and-trace-events
+Patch5: with_xen_datapath_only
+Patch6: update_coverity_model
+Patch7: amend_max_events
+Patch8: reduce_watch_load
+BuildRequires: libaio-devel
+BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
 BuildRequires: pixman-devel
 BuildRequires: xen-libs-devel
-BuildRequires: libseccomp-devel zlib-devel
+BuildRequires: libseccomp-devel
+BuildRequires: zlib-devel
+BuildRequires: python3 >= 3.6
+BuildRequires: meson
+BuildRequires: libfdt-devel
+BuildRequires: devtoolset-11-gcc
+BuildRequires: devtoolset-11-binutils
 %{?_cov_buildrequires}
 
 %description
@@ -57,13 +48,17 @@ the storage datapath.
 %prep
 %autosetup -p1
 %{?_cov_prepare}
+# submodule ui/keymapcodedb
+tar xzf %{SOURCE1}
 
 %build
-%{?_cov_make_model:%{_cov_make_model scripts/coverity-model.c}}
-./configure --cc=gcc --cxx=/dev/null --enable-xen --target-list=i386-softmmu --source-path=. \
+source /opt/rh/devtoolset-11/enable
+
+%{?_cov_make_model:%{_cov_make_model scripts/coverity-scan/model.c}}
+./configure --cc=gcc --cxx=/dev/null --enable-xen --target-list=i386-softmmu \
     --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{_libdir}/qemu-dp/bin --datadir=%{_datarootdir} \
     --localstatedir=%{_localstatedir} --libexecdir=%{_libexecdir} --sysconfdir=%{_sysconfdir} \
-    --enable-werror --enable-libusb --enable-trace-backend=syslog \
+    --enable-werror --enable-libusb --enable-trace-backend=log \
     --disable-kvm --disable-docs --disable-guest-agent --disable-sdl \
     --disable-curses --disable-curl --disable-gtk --disable-bzip2 \
     --disable-strip --disable-gnutls --disable-nettle --disable-gcrypt \
@@ -71,28 +66,70 @@ the storage datapath.
     --disable-lzo --disable-tpm --disable-virtfs --disable-tcg --disable-tcg-interpreter \
     --disable-replication --disable-qom-cast-debug --disable-slirp \
     --audio-drv-list= --disable-live-block-migration \
-    --disable-libusb \
-    --enable-seccomp --enable-qemudp
+    --disable-bochs --disable-cloop --disable-dmg --disable-vvfat --disable-qed \
+    --disable-parallels --disable-libusb --with-xen-datapath-only \
+    --disable-xen-pci-passthrough \
+    --without-default-devices --with-git-submodules=ignore \
+    --disable-vnc --disable-oss \
+    --enable-seccomp --meson=/usr/bin/meson
+
+##CONFIGEND
 %{?_cov_wrap} %{__make} %{?_smp_mflags} V=1 all
 
 %install
-mkdir -p %{buildroot}%{_libdir}/qemu-dp/bin
+source /opt/rh/devtoolset-11/enable
 
-rm -rf %{buildroot}
 %{__make} %{?_smp_mflags} install DESTDIR=%{buildroot}
 rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_libdir}/libcacard.*a \
        %{buildroot}/usr/share/locale %{buildroot}%{_datarootdir} %{buildroot}%{_libexecdir} \
-       %{buildroot}%{_libdir}/qemu-dp/bin/ivshmem-* %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386
-install -m 644 qemu-dp-tracing "%{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp-tracing"
+       %{buildroot}%{_libdir}/qemu-dp/bin/ivshmem-*
+# Install qemu-dp script
+install -D -m 644 qemu-datapath@.service %{buildroot}%{_unitdir}/qemu-datapath@.service
+install -D -m 755 qemu-dp %{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp
+# Install trace events
+install -D -m 644 dp-trace-events %{buildroot}%{_libdir}/qemu-dp/bin/trace-events
+# Rename qemu-system-i386 binary to qemu-datapath
+mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qemu-dp/bin/qemu-datapath
 %{?_cov_install}
 
 %files
 %dir %{_libdir}/qemu-dp/
 %{_libdir}/qemu-dp/bin
+%{_unitdir}/qemu-datapath@.service
 
 %{?_cov_results_package}
 
 %changelog
+* Wed Aug 09 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-8
+- CA-379219 adjust patch to drain the ring on dataplane stop
+- Re-enable coroutine pool
+
+* Wed Jun 21 2023 Mark Syms <mark.syms@citrix.com> - 7.0.0-7
+- Adjust ring-drain patch to stop acting on post-shutdown events
+
+* Thu Apr 20 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-6
+- CA-376355 Prevent segfaults on datapath shutdown/restart
+
+* Wed Mar 29 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-5
+- Trace Xen backend
+- Backport: Avoid crash when backend watch fires too early
+- Reinstate ensure_ring_drained_on_stop patch
+
+* Fri Mar 17 2023 Mark Syms <mark.syms@citrix.com> - 7.0.0-4
+- Disable VNC
+
+* Mon Mar 06 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-3
+- CA-375614 Reduce the amount of xenstore watch activity
+
+* Wed Mar 01 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-2
+- CA-375417 reduce MAX_EVENTS for Linux AIO
+- CA-375469 Increase FD limit for datapath service
+
+* Fri Feb 03 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-1
+- CP-31202 Rebase on 4.2.1 and switch to instanced service
+- CP-36590 Update to build using Qemu v7.0.0
+- CP-36590 Update coverity model
+
 * Wed Nov 17 2021 Mark Syms <mark.syms@citrix.com> - 2.12.0-2.0.12
 - Rebuild
 

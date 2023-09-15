@@ -1,0 +1,24 @@
+Amend MAX_EVENTS to 256
+
+From: Tim Smith <tim.smith@citrix.com>
+
+The MAX_EVENTS value of 1024 causes us to run out of a perfectly reasonable
+/proc/sys/fs/aio-max-nr limit when using many disks on a single host.
+Reduce this value down to conserve resource.
+---
+ block/linux-aio.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/linux-aio.c b/block/linux-aio.c
+index 4c423fcccf..2cbab594dc 100644
+--- a/block/linux-aio.c
++++ b/block/linux-aio.c
+@@ -26,7 +26,7 @@
+  *      than this we will get EAGAIN from io_submit which is communicated to
+  *      the guest as an I/O error.
+  */
+-#define MAX_EVENTS 1024
++#define MAX_EVENTS 256
+ 
+ /* Maximum number of requests in a batch. (default value) */
+ #define DEFAULT_MAX_BATCH 32

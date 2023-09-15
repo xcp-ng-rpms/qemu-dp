@@ -1,0 +1,59 @@
+Add templated systemd services for qemu-dp datapath and also a set of
+
+From: Tim Smith <tim.smith@citrix.com>
+
+trace events for debugging
+---
+ dp-trace-events        |    0 
+ qemu-datapath@.service |   13 +++++++++++++
+ qemu-dp                |   17 +++++++++++++++++
+ 3 files changed, 30 insertions(+)
+ create mode 100644 dp-trace-events
+ create mode 100644 qemu-datapath@.service
+ create mode 100755 qemu-dp
+
+diff --git a/dp-trace-events b/dp-trace-events
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/qemu-datapath@.service b/qemu-datapath@.service
+new file mode 100644
+index 0000000000..3a3623431d
+--- /dev/null
++++ b/qemu-datapath@.service
+@@ -0,0 +1,13 @@
++# This is a template for Qemu datapath instances.
++
++[Unit]
++Description=Qemu datapath instance for domid %i
++
++[Service]
++Type=simple
++Restart=no
++ExecStartPre=/usr/bin/mkdir -p -m 700 /run/qemu-datapath/%i
++ExecStopPost=/usr/bin/rm -rf /run/qemu-datapath/%i
++ExecStart=/usr/lib64/qemu-dp/bin/qemu-dp %i
++Slice=domain-%i.slice
++LimitNOFILE=8192
+diff --git a/qemu-dp b/qemu-dp
+new file mode 100755
+index 0000000000..2f9202a9fb
+--- /dev/null
++++ b/qemu-dp
+@@ -0,0 +1,17 @@
++#!/bin/bash
++
++## This will convert all non-numeric DOMID arguments to 0
++## but leave the requested value in SLICE so we can distinguish
++## sockets. This gives us one qemu-datapath per guest, but
++## potentially several in Dom0
++SLICE=$1
++DOMID=$((SLICE + 0))
++exec /usr/lib64/qemu-dp/bin/qemu-datapath \
++    -machine xenpv \
++    -xen-attach \
++    -xen-domid $DOMID \
++    -qmp unix:/run/qemu-datapath/$SLICE/qmp,server,nowait \
++    -qmp unix:/run/qemu-datapath/$SLICE/qmpgc,server,nowait \
++    -trace events=/usr/lib64/qemu-dp/bin/trace-events
++
++

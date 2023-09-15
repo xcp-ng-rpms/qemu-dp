@@ -1,0 +1,21 @@
+qemu-seccomp.c seems to need linux/sched.h
+
+From: Tim Smith <tim.smith@citrix.com>
+
+
+---
+ softmmu/qemu-seccomp.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/softmmu/qemu-seccomp.c b/softmmu/qemu-seccomp.c
+index deaf8a4ef5..43ba2cc3a2 100644
+--- a/softmmu/qemu-seccomp.c
++++ b/softmmu/qemu-seccomp.c
+@@ -22,6 +22,7 @@
+ #include <seccomp.h>
+ #include "sysemu/seccomp.h"
+ #include <linux/seccomp.h>
++#include <linux/sched.h>
+ 
+ /* For some architectures (notably ARM) cacheflush is not supported until
+  * libseccomp 2.2.3, but configure enforces that we are using a more recent
