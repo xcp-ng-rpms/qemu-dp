@@ -1,15 +1,21 @@
 Update coverity model to support glib data structures
 
-  * g_hashtable_insert
+From: Tim Smith <tim.smith@citrix.com>
+
+* g_hashtable_insert
   * g_array_append_vals
 
 Signed-off-by: Mark Syms <mark.syms@citrix.com>
-diff --git a/scripts/coverity-model.c b/scripts/coverity-model.c
-index c702804..1d93b38 100644
---- a/scripts/coverity-model.c
-+++ b/scripts/coverity-model.c
-@@ -349,6 +349,28 @@ char *g_strconcat(const char *s, ...)
-     return s;
+---
+ scripts/coverity-scan/model.c |   21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/scripts/coverity-scan/model.c b/scripts/coverity-scan/model.c
+index 686d1a3008..8750bd5e94 100644
+--- a/scripts/coverity-scan/model.c
++++ b/scripts/coverity-scan/model.c
+@@ -342,6 +342,27 @@ void *g_try_realloc(void *ptr, size_t size)
+     return g_realloc(ptr, size);
  }
  
 +/*
@@ -32,7 +38,6 @@ index c702804..1d93b38 100644
 +{
 +    __coverity_escape__(data);
 +}
-+
 +
  /* Other glib functions */
  

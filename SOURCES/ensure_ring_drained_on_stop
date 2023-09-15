@@ -1,0 +1,75 @@
+Ensure the PV ring is drained on disconnect
+
+From: Tim Smith <tim.smith@citrix.com>
+
+This should prevent any later asynchronous attempt to reply through the PV
+ring from racing with the ring being unmapped, thus causing a segfault.
+
+Signed-off-by: Tim Smith <tim.smith@citrix.com>
+---
+ hw/block/dataplane/xen-block.c |   28 ++++++++++++++++++++++------
+ 1 file changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index 2785b9e849..ed4060b36d 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -258,6 +258,10 @@ static void xen_block_complete_aio(void *opaque, int ret)
+     XenBlockRequest *request = opaque;
+     XenBlockDataPlane *dataplane = request->dataplane;
+ 
++    if (!dataplane || !dataplane->sring) {
++        /* This dataplane is shut down. This is no longer relevant */
++        return;
++    }
+     aio_context_acquire(dataplane->ctx);
+ 
+     if (ret != 0) {
+@@ -522,6 +526,10 @@ static bool xen_block_handle_requests(XenBlockDataPlane *dataplane)
+ 
+     dataplane->more_work = 0;
+ 
++    if (dataplane->sring == 0) {
++        return done_something;
++    }
++
+     rc = dataplane->rings.common.req_cons;
+     rp = dataplane->rings.common.sring->req_prod;
+     xen_rmb(); /* Ensure we see queued requests up to 'rp'. */
+@@ -670,9 +678,23 @@ void xen_block_dataplane_stop(XenBlockDataPlane *dataplane)
+         return;
+     }
+ 
++    /* We're about to drain the ring. We can cancel the scheduling of any
++     * bottom half now */
++    qemu_bh_cancel(dataplane->bh);
++
++    /* Ensure we have drained the ring */
++    aio_context_acquire(dataplane->ctx);
++    do {
++        xen_block_handle_requests(dataplane);
++    } while (dataplane->more_work);
++    /* Wait until there are no more requests in flight */
++    AIO_WAIT_WHILE(dataplane->ctx, qatomic_mb_read(&dataplane->requests_inflight) > 0);
++    aio_context_release(dataplane->ctx);
++
+     xendev = dataplane->xendev;
+ 
+     aio_context_acquire(dataplane->ctx);
++
+     if (dataplane->event_channel) {
+         /* Only reason for failure is a NULL channel */
+         xen_device_set_event_channel_context(xendev, dataplane->event_channel,
+@@ -683,12 +705,6 @@ void xen_block_dataplane_stop(XenBlockDataPlane *dataplane)
+     blk_set_aio_context(dataplane->blk, qemu_get_aio_context(), &error_abort);
+     aio_context_release(dataplane->ctx);
+ 
+-    /*
+-     * Now that the context has been moved onto the main thread, cancel
+-     * further processing.
+-     */
+-    qemu_bh_cancel(dataplane->bh);
+-
+     if (dataplane->event_channel) {
+         Error *local_err = NULL;
+ 

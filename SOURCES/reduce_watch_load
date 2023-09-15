@@ -1,0 +1,50 @@
+Do not register a xen watch for qdisk type when XEN_DATAPATH_ONLY
+
+From: Tim Smith <tim.smith@citrix.com>
+
+The watch for everything of type qdisk results in a large number of
+events, particularly when activating a lot of disks on a guest. Then
+each of those events causes a complete enumeration of the entire bus,
+which is an ever-increasing load on the Xenstore implementation.
+
+Instead of causing another event (and thus another complete bus
+enumeration) whenever a device may need to be removed in order to get
+xen_bus_cleanup() called, simply call it right after adding the device to
+the inactive list, which should keep the inactive list nice and short.
+---
+ hw/xen/xen-bus.c |   10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/hw/xen/xen-bus.c b/hw/xen/xen-bus.c
+index 19f20c6608..0bb7f4fae6 100644
+--- a/hw/xen/xen-bus.c
++++ b/hw/xen/xen-bus.c
+@@ -484,6 +484,11 @@ static void xen_bus_realize(BusState *bus, Error **errp)
+     xenbus->backend_watch = g_new(XenWatch *, xenbus->backend_types);
+ 
+     for (i = 0; i < xenbus->backend_types; i++) {
++#ifdef CONFIG_XEN_DATAPATH_ONLY
++        /* If it's type "qdisk", don't set up the type watch */
++        if (!strcmp(type[i], "qdisk"))
++            continue;
++#endif /* CONFIG_XEN_DATAPATH_ONLY */
+         char *node = g_strdup_printf("backend/%s", type[i]);
+ 
+         xenbus->backend_watch[i] =
+@@ -676,11 +681,16 @@ static void xen_device_backend_changed(void *opaque)
+         xendev->inactive = true;
+         QLIST_INSERT_HEAD(&xenbus->inactive_devices, xendev, list);
+ 
++#ifdef CONFIG_XEN_DATAPATH_ONLY
++        /* Just call xen_bus_cleanup() */
++        xen_bus_cleanup(xenbus);
++#else /* CONFIG_XEN_DATAPATH_ONLY */
+         /*
+          * Re-write the state to cause a XenBus backend_watch notification,
+          * resulting in a call to xen_bus_cleanup().
+          */
+         xen_device_backend_printf(xendev, "state", "%u", state);
++#endif /* CONFIG_XEN_DATAPATH_ONLY */
+     }
+ }
+ 

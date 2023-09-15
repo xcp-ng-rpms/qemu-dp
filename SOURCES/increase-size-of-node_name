@@ -1,0 +1,25 @@
+Increase size of node_name
+
+From: Tim Smith <tim.smith@citrix.com>
+
+We need to be able to store longer node names so that we can
+support encoding a UUID and a volume id which may be up to
+8 bytes long. Though we base64 encode these to shorten them,
+32 bytes of node_name is still not quite enough.
+---
+ include/block/block_int-common.h |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/block/block_int-common.h b/include/block/block_int-common.h
+index 8947abab76..4fb1c6acfc 100644
+--- a/include/block/block_int-common.h
++++ b/include/block/block_int-common.h
+@@ -1085,7 +1085,7 @@ struct BlockDriverState {
+     unsigned int supported_truncate_flags;
+ 
+     /* the following member gives a name to every node on the bs graph. */
+-    char node_name[32];
++    char node_name[64];
+     /* element of the list of named nodes building the graph */
+     QTAILQ_ENTRY(BlockDriverState) node_list;
+     /* element of the list of all BlockDriverStates (all_bdrv_states) */
