@@ -12,7 +12,7 @@ Summary: qemu-dp storage datapath
 Name: qemu-dp
 Epoch: 2
 Version: 7.0.0
-Release: %{?xsrel}%{?dist}
+Release: %{?xsrel}.0.xen417.1%{?dist}
 License: GPL
 Requires: jemalloc
 Requires: kernel >= 4.19.19-5.0.0
@@ -100,6 +100,9 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{?_cov_results_package}
 
 %changelog
+* Tue Feb 13 2024 Thierry Escande <thierry.escande@vates.tech> - 7.0.0-8.0.xen417.1
+- Rebuild for Xen 4.17 test build
+
 * Wed Aug 09 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-8
 - CA-379219 adjust patch to drain the ring on dataplane stop
 - Re-enable coroutine pool
