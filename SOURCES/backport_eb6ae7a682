@@ -1,0 +1,89 @@
+Backport "hw/xen: do not repeatedly try to create a failing backend device"
+
+From: Tim Smith <tim.smith@cloud.com>
+
+Backport commit eb6ae7a682
+---
+ hw/xen/xen-backend.c         |   27 +++++++++++++++++++++------
+ hw/xen/xen-bus.c             |    3 ++-
+ include/hw/xen/xen-backend.h |    1 +
+ 3 files changed, 24 insertions(+), 7 deletions(-)
+
+diff --git a/hw/xen/xen-backend.c b/hw/xen/xen-backend.c
+index 5b0fb76eae..b9bf70a9f5 100644
+--- a/hw/xen/xen-backend.c
++++ b/hw/xen/xen-backend.c
+@@ -101,6 +101,24 @@ static XenBackendInstance *xen_backend_list_find(XenDevice *xendev)
+     return NULL;
+ }
+ 
++bool xen_backend_exists(const char *type, const char *name)
++{
++    const XenBackendImpl *impl = xen_backend_table_lookup(type);
++    XenBackendInstance *backend;
++
++    if (!impl) {
++        return false;
++    }
++
++    QLIST_FOREACH(backend, &backend_list, entry) {
++        if (backend->impl == impl && !strcmp(backend->name, name)) {
++            return true;
++        }
++    }
++
++    return false;
++}
++
+ static void xen_backend_list_remove(XenBackendInstance *backend)
+ {
+     QLIST_REMOVE(backend, entry);
+@@ -122,11 +140,6 @@ void xen_backend_device_create(XenBus *xenbus, const char *type,
+     backend->name = g_strdup(name);
+ 
+     impl->create(backend, opts, errp);
+-    if (*errp) {
+-        g_free(backend->name);
+-        g_free(backend);
+-        return;
+-    }
+ 
+     backend->impl = impl;
+     xen_backend_list_add(backend);
+@@ -165,7 +178,9 @@ bool xen_backend_try_device_destroy(XenDevice *xendev, Error **errp)
+     }
+ 
+     impl = backend->impl;
+-    impl->destroy(backend, errp);
++    if (backend->xendev) {
++        impl->destroy(backend, errp);
++    }
+ 
+     xen_backend_list_remove(backend);
+     g_free(backend->name);
+diff --git a/hw/xen/xen-bus.c b/hw/xen/xen-bus.c
+index 5dbc42ae64..ad487acf04 100644
+--- a/hw/xen/xen-bus.c
++++ b/hw/xen/xen-bus.c
+@@ -346,7 +346,8 @@ static void xen_bus_type_enumerate(XenBus *xenbus, const char *type)
+                           NULL, "%u", &online) != 1)
+             online = 0;
+ 
+-        if (online && state == XenbusStateInitialising) {
++        if (online && state == XenbusStateInitialising &&
++            !xen_backend_exists(type, backend[i])) {
+             Error *local_err = NULL;
+ 
+             xen_bus_backend_create(xenbus, type, backend[i], backend_path,
+diff --git a/include/hw/xen/xen-backend.h b/include/hw/xen/xen-backend.h
+index aac2fd454d..0f01631ae7 100644
+--- a/include/hw/xen/xen-backend.h
++++ b/include/hw/xen/xen-backend.h
+@@ -33,6 +33,7 @@ XenDevice *xen_backend_get_device(XenBackendInstance *backend);
+ void xen_backend_register(const XenBackendInfo *info);
+ const char **xen_backend_get_types(unsigned int *nr);
+ 
++bool xen_backend_exists(const char *type, const char *name);
+ void xen_backend_device_create(XenBus *xenbus, const char *type,
+                                const char *name, QDict *opts, Error **errp);
+ bool xen_backend_try_device_destroy(XenDevice *xendev, Error **errp);

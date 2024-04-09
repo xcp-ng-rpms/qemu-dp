@@ -1,6 +1,6 @@
-%global package_speccommit f10fdd82ff00e62721cd1d10389b6650da37842f
+%global package_speccommit 12377ba3472637f50e370e30b6a0560d6d5284ac
 %global usver 7.0.0
-%global xsver 8
+%global xsver 11
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -14,7 +14,6 @@ Epoch: 2
 Version: 7.0.0
 Release: %{?xsrel}%{?dist}
 License: GPL
-Requires: jemalloc
 Requires: kernel >= 4.19.19-5.0.0
 Source0: qemu-dp-7.0.0.tar.gz
 Source1: keycodemapdb-e15649b83a78f89f57205927022115536d2c1698.tar.gz
@@ -27,6 +26,7 @@ Patch5: with_xen_datapath_only
 Patch6: update_coverity_model
 Patch7: amend_max_events
 Patch8: reduce_watch_load
+Patch9: backport_eb6ae7a682
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -100,6 +100,15 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{?_cov_results_package}
 
 %changelog
+* Fri Feb 02 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-11
+- Use vm.slice for datapath
+
+* Fri Jan 26 2024 Mark Syms <mark.syms@citrix.com> - 7.0.0-10
+- Rebuild against libxenstore.so.4
+
+* Thu Jan 25 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-9
+- CA-382742 Avoid SEGV on deactivating last disk
+
 * Wed Aug 09 2023 Tim Smith <tim.smith@citrix.com> - 7.0.0-8
 - CA-379219 adjust patch to drain the ring on dataplane stop
 - Re-enable coroutine pool
