@@ -1,0 +1,27 @@
+Cancel all jobs on dataplane start
+
+From: Tim Smith <tim.smith@cloud.com>
+
+If there is a block job running on anything in the chain when the guest
+attaches, qemu will crash with
+
+../util/aiocb.c:51: qemu_aio_unref: Assertion `acb->refcnt > 0' failed.
+
+So cancel all running jobs before this can happen.
+---
+ hw/block/dataplane/xen-block.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index 655010f5bd..e2061f339f 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -831,6 +831,8 @@ void xen_block_dataplane_start(XenBlockDataPlane *dataplane,
+         goto stop;
+     }
+ 
++    block_job_cancel_all_bs(blk_bs(dataplane->blk));
++
+     old_context = blk_get_aio_context(dataplane->blk);
+     aio_context_acquire(old_context);
+     /* If other users keep the BlockBackend in the iothread, that's ok */

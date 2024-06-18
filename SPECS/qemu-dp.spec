@@ -1,6 +1,6 @@
-%global package_speccommit 12377ba3472637f50e370e30b6a0560d6d5284ac
+%global package_speccommit 9061badec428409da7945148a4246c58785e1ed8
 %global usver 7.0.0
-%global xsver 11
+%global xsver 12
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -27,6 +27,8 @@ Patch6: update_coverity_model
 Patch7: amend_max_events
 Patch8: reduce_watch_load
 Patch9: backport_eb6ae7a682
+Patch10: cancel_all_jobs_on_dataplane_stop
+Patch11: cancel_all_jobs_on_dataplane_start
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -39,6 +41,7 @@ BuildRequires: meson
 BuildRequires: libfdt-devel
 BuildRequires: devtoolset-11-gcc
 BuildRequires: devtoolset-11-binutils
+Conflicts: xapi-storage-plugins-libs < 3.5.0-1
 %{?_cov_buildrequires}
 
 %description
@@ -100,6 +103,11 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{?_cov_results_package}
 
 %changelog
+* Tue May 07 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-12
+- CA-392001 Cancel all jobs on datapath stop
+- CA-392022 Cancel all jobs on dataplane start
+- CA-392022 Add conflict for older xapi storage-plugins-libs
+
 * Fri Feb 02 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-11
 - Use vm.slice for datapath
 
