@@ -1,0 +1,74 @@
+Ensure that there are no jobs running on dataplane stop
+
+From: Tim Smith <tim.smith@cloud.com>
+
+Normally this will be the case, because the jobs we run through the monitor
+are mostly GC jobs which will have been externally cancelled for external
+detach etc. The issue occurs when the guest decides to detach/unmount
+internally while a job is running.
+---
+ blockjob.c                     |   15 +++++++++++++++
+ hw/block/dataplane/xen-block.c |    5 +++++
+ include/block/blockjob.h       |    7 +++++++
+ 3 files changed, 27 insertions(+)
+
+diff --git a/blockjob.c b/blockjob.c
+index 4868453d74..248e9ef5cd 100644
+--- a/blockjob.c
++++ b/blockjob.c
+@@ -498,6 +498,21 @@ fail:
+     return NULL;
+ }
+ 
++void block_job_cancel_all_bs(BlockDriverState *bs)
++{
++    BlockJob *job;
++    AioContext *aio_context;
++
++    for (job = block_job_next(NULL); job; job = block_job_next(job)) {
++        if (block_job_has_bdrv(job, bs)) {
++            aio_context = job->job.aio_context;
++            aio_context_acquire(aio_context);
++            job_cancel_sync(&job->job, true);
++            aio_context_release(aio_context);
++        }
++    }
++}
++
+ void block_job_iostatus_reset(BlockJob *job)
+ {
+     GLOBAL_STATE_CODE();
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index ed4060b36d..655010f5bd 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -678,6 +678,11 @@ void xen_block_dataplane_stop(XenBlockDataPlane *dataplane)
+         return;
+     }
+ 
++    /* That comment about multiple users for nodes doesn't seem to hold true
++     * if there are block jobs working on the chain. Cancel
++     * all block jobs as a brute force solution for now */
++    block_job_cancel_all_bs(blk_bs(dataplane->blk));
++
+     /* We're about to drain the ring. We can cancel the scheduling of any
+      * bottom half now */
+     qemu_bh_cancel(dataplane->bh);
+diff --git a/include/block/blockjob.h b/include/block/blockjob.h
+index 6525e16fd5..46712cc412 100644
+--- a/include/block/blockjob.h
++++ b/include/block/blockjob.h
+@@ -153,6 +153,13 @@ bool block_job_set_speed(BlockJob *job, int64_t speed, Error **errp);
+  */
+ BlockJobInfo *block_job_query(BlockJob *job, Error **errp);
+ 
++/**
++ * block_job_cancel_all_bs:
++ *
++ * Cancel all block jobs which use @bs.
++ */
++void block_job_cancel_all_bs(BlockDriverState *bs);
++
+ /**
+  * block_job_iostatus_reset:
+  * @job: The job whose I/O status should be reset.
