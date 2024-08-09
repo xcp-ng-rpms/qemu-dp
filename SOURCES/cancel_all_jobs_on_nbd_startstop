@@ -1,0 +1,34 @@
+Cancel all block jobs on NBD export or shutdown
+
+From: Tim Smith <tim.smith@cloud.com>
+
+If there are any block jobs running in the chain when an export is started
+or stopped, QEMU will dump core with
+
+../nbd/server.c:1548: blk_aio_attached: Assertion `client->recv_coroutine == ((void *)0)' failed.
+---
+ nbd/server.c |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/nbd/server.c b/nbd/server.c
+index c5644fd3f6..2713d5789a 100644
+--- a/nbd/server.c
++++ b/nbd/server.c
+@@ -1752,6 +1752,9 @@ static int nbd_export_create(BlockExport *blk_exp, BlockExportOptions *exp_args,
+         bdrv_dirty_bitmap_set_busy(exp->export_bitmaps[i], true);
+     }
+ 
++    /* Stop all block jobs to avoid assertion failure in blk_aio_attached() */
++    block_job_cancel_all_bs(blk_bs(blk));
++
+     exp->allocation_depth = arg->allocation_depth;
+ 
+     /*
+@@ -1834,6 +1837,7 @@ static void nbd_export_delete(BlockExport *blk_exp)
+             notifier_remove(&exp->eject_notifier);
+             blk_unref(exp->eject_notifier_blk);
+         }
++        block_job_cancel_all_bs(blk_bs(exp->common.blk));
+         blk_remove_aio_context_notifier(exp->common.blk, blk_aio_attached,
+                                         blk_aio_detach, exp);
+         blk_set_disable_request_queuing(exp->common.blk, false);

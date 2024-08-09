@@ -1,6 +1,6 @@
-%global package_speccommit 9061badec428409da7945148a4246c58785e1ed8
+%global package_speccommit 32901f2e3ad6d1a020bcb96254509e6fb64cafc6
 %global usver 7.0.0
-%global xsver 12
+%global xsver 13
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -29,6 +29,7 @@ Patch8: reduce_watch_load
 Patch9: backport_eb6ae7a682
 Patch10: cancel_all_jobs_on_dataplane_stop
 Patch11: cancel_all_jobs_on_dataplane_start
+Patch12: cancel_all_jobs_on_nbd_startstop
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -103,6 +104,9 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{?_cov_results_package}
 
 %changelog
+* Thu May 23 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-13
+- CA-393131 Cancel all block jobs on NBD export/unexport
+
 * Tue May 07 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-12
 - CA-392001 Cancel all jobs on datapath stop
 - CA-392022 Cancel all jobs on dataplane start
