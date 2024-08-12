@@ -13,10 +13,10 @@ So cancel all running jobs before this can happen.
  1 file changed, 2 insertions(+)
 
 diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
-index 655010f5bd..e2061f339f 100644
+index 30c91a0429..8a294ca4ed 100644
 --- a/hw/block/dataplane/xen-block.c
 +++ b/hw/block/dataplane/xen-block.c
-@@ -831,6 +831,8 @@ void xen_block_dataplane_start(XenBlockDataPlane *dataplane,
+@@ -830,6 +830,8 @@ void xen_block_dataplane_start(XenBlockDataPlane *dataplane,
          goto stop;
      }
  

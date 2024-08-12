@@ -1,6 +1,6 @@
-%global package_speccommit 32901f2e3ad6d1a020bcb96254509e6fb64cafc6
+%global package_speccommit f6a955254753ba1d72e2573e399de4a7dc80b11e
 %global usver 7.0.0
-%global xsver 13
+%global xsver 15
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -29,7 +29,8 @@ Patch8: reduce_watch_load
 Patch9: backport_eb6ae7a682
 Patch10: cancel_all_jobs_on_dataplane_stop
 Patch11: cancel_all_jobs_on_dataplane_start
-Patch12: cancel_all_jobs_on_nbd_startstop
+Patch12: drain_section_in_dataplane_start
+Patch13: mirror_job_can_be_null
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -104,6 +105,12 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 05 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-15
+- CA-394742 Improve robustness on ring connect/disconnect
+
+* Tue Jun 11 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-14
+- CA-393844 Replace previous job cancelation with drained section
+
 * Thu May 23 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-13
 - CA-393131 Cancel all block jobs on NBD export/unexport
 

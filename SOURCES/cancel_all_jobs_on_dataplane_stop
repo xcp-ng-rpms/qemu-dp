@@ -6,11 +6,14 @@ Normally this will be the case, because the jobs we run through the monitor
 are mostly GC jobs which will have been externally cancelled for external
 detach etc. The issue occurs when the guest decides to detach/unmount
 internally while a job is running.
+
+(Second amendment to this patch; move the cancellation of block jobs until
+*after* we have drained the ring and cancelled the bottom half)
 ---
  blockjob.c                     |   15 +++++++++++++++
- hw/block/dataplane/xen-block.c |    5 +++++
+ hw/block/dataplane/xen-block.c |    4 ++++
  include/block/blockjob.h       |    7 +++++++
- 3 files changed, 27 insertions(+)
+ 3 files changed, 26 insertions(+)
 
 diff --git a/blockjob.c b/blockjob.c
 index 4868453d74..248e9ef5cd 100644
@@ -39,21 +42,20 @@ index 4868453d74..248e9ef5cd 100644
  {
      GLOBAL_STATE_CODE();
 diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
-index ed4060b36d..655010f5bd 100644
+index ed4060b36d..30c91a0429 100644
 --- a/hw/block/dataplane/xen-block.c
 +++ b/hw/block/dataplane/xen-block.c
-@@ -678,6 +678,11 @@ void xen_block_dataplane_stop(XenBlockDataPlane *dataplane)
-         return;
-     }
+@@ -692,6 +692,10 @@ void xen_block_dataplane_stop(XenBlockDataPlane *dataplane)
+     aio_context_release(dataplane->ctx);
  
+     xendev = dataplane->xendev;
 +    /* That comment about multiple users for nodes doesn't seem to hold true
 +     * if there are block jobs working on the chain. Cancel
 +     * all block jobs as a brute force solution for now */
 +    block_job_cancel_all_bs(blk_bs(dataplane->blk));
-+
-     /* We're about to drain the ring. We can cancel the scheduling of any
-      * bottom half now */
-     qemu_bh_cancel(dataplane->bh);
+ 
+     aio_context_acquire(dataplane->ctx);
+ 
 diff --git a/include/block/blockjob.h b/include/block/blockjob.h
 index 6525e16fd5..46712cc412 100644
 --- a/include/block/blockjob.h

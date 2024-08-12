@@ -1,0 +1,62 @@
+Add a drained section around aiocontext change in dataplane_start
+
+From: Tim Smith <tim.smith@cloud.com>
+
+This should get the NBD client fully quiesced before the change of AIO
+context which will hopefully avoid the following assertion failure:
+
+../nbd/server.c:1548: blk_aio_attached: Assertion `client->recv_coroutine == ((void *)0)' failed.
+
+ Program terminated with signal 6, Aborted.
+ #0  0x00007f8b996ff277 in __GI_raise (sig=sig@entry=6) at ../nptl/sysdeps/unix/sysv/linux/raise.c:56
+ 56        return INLINE_SYSCALL (tgkill, 3, pid, selftid, sig);
+ (gdb) bt
+ #0  0x00007f8b996ff277 in __GI_raise (sig=sig@entry=6) at ../nptl/sysdeps/unix/sysv/linux/raise.c:56
+ #1  0x00007f8b99700968 in __GI_abort () at abort.c:90
+ #2  0x00007f8b996f8096 in __assert_fail_base (fmt=0x7f8b99853580 "%s%s%s:%u: %s%sAssertion `%s' failed.\n%n", assertion=assertion@entry=0x5558fe66a200 "client->recv_coroutine == ((void *)0)", file=file@entry=0x5558fe669b5f "../nbd/server.c", line=line@entry=1548, function=function@entry=0x5558fe669af0 <__PRETTY_FUNCTION__.34> "blk_aio_attached") at assert.c:92
+ #3  0x00007f8b996f8142 in __GI___assert_fail (assertion=assertion@entry=0x5558fe66a200 "client->recv_coroutine == ((void *)0)", file=file@entry=0x5558fe669b5f "../nbd/server.c", line=line@entry=1548, function=function@entry=0x5558fe669af0 <__PRETTY_FUNCTION__.34> "blk_aio_attached") at assert.c:101
+ #4  0x00005558fe4789ec in blk_aio_attached (ctx=0x555900099a00, opaque=<optimized out>) at /usr/src/debug/qemu-dp-7.0.0/nbd/trace-events:64
+ #5  0x00005558fe490532 in bdrv_set_aio_context_ignore (new_context=0x555900099a00, bs=0x5559000952b0) at ../block.c:7307
+ #6  0x00005558fe490532 in bdrv_set_aio_context_ignore (bs=bs@entry=0x5559000952b0, new_context=new_context@entry=0x555900099a00, ignore=ignore@entry=0x7ffd1de5e240) at ../block.c:7384
+ #7  0x00005558fe4914d4 in bdrv_child_try_set_aio_context (bs=bs@entry=0x5559000952b0, ctx=ctx@entry=0x555900099a00, ignore_child=<optimized out>, errp=errp@entry=0x0) at ../block.c:7487
+ #8  0x00005558fe4aec7e in blk_set_aio_context (errp=0x0, update_root_node=true, new_context=0x555900099a00, blk=0x55590052c1b0)
+     at ../block/block-backend.c:2193
+ #9  0x00005558fe4aec7e in blk_set_aio_context (blk=0x55590052c1b0, new_context=0x555900099a00, errp=errp@entry=0x0)
+     at ../block/block-backend.c:2218
+ #10 0x00005558fe43238c in xen_block_dataplane_start (dataplane=0x555900641490, ring_ref=ring_ref@entry=0x5559002ee1f0, nr_ring_ref=nr_ring_ref@entry=1, event_channel=<optimized out>, protocol=<optimized out>, errp=errp@entry=0x7ffd1de5e3e0) at ../hw/block/dataplane/xen-block.c:839
+ #11 0x00005558fe37b5da in xen_block_frontend_changed (errp=0x7ffd1de5e3e0, xendev=0x55590052ba20) at ../hw/block/xen-block.c:133
+ #12 0x00005558fe37b5da in xen_block_frontend_changed (xendev=0x55590052ba20, frontend_state=<optimized out>, errp=<optimized out>)
+     at ../hw/block/xen-block.c:298
+ #13 0x00005558fe3d7893 in xen_device_frontend_changed (opaque=0x55590052ba20) at ../hw/xen/xen-bus.c:886
+ #14 0x00005558fe598f37 in notifier_list_notify (list=list@entry=0x55590052c668, data=0x5559006404d8) at ../util/notify.c:39
+ #15 0x00005558fe3d51f6 in watch_list_event (opaque=0x55590052c660) at ../hw/xen/xen-bus.c:177
+ #16 0x00005558fe590008 in aio_dispatch_handler (ctx=ctx@entry=0x5558fff379a0, node=0x555900640790) at ../util/aio-posix.c:368
+ #17 0x00005558fe5908c2 in aio_dispatch (ctx=0x5558fff379a0) at ../util/aio-posix.c:411
+ #18 0x00005558fe5908c2 in aio_dispatch (ctx=0x5558fff379a0) at ../util/aio-posix.c:421
+ #19 0x00005558fe5a153e in aio_ctx_dispatch (source=<optimized out>, callback=<optimized out>, user_data=<optimized out>)
+     at ../util/async.c:312
+ #20 0x00007f8b9a61b0c9 in g_main_context_dispatch () at /lib64/libglib-2.0.so.0
+ #21 0x00005558fe5ad4c8 in main_loop_wait () at ../util/main-loop.c:232
+ #22 0x00005558fe5ad4c8 in main_loop_wait (timeout=587063000000) at ../util/main-loop.c:255
+ #23 0x00005558fe5ad4c8 in main_loop_wait (nonblocking=nonblocking@entry=0) at ../util/main-loop.c:531
+ #24 0x00005558fe311c43 in qemu_main_loop () at ../softmmu/runstate.c:727
+ #25 0x00005558fe2e6d1e in main (argc=<optimized out>, argv=<optimized out>, envp=<optimized out>) at ../softmmu/main.c:50
+---
+ hw/block/dataplane/xen-block.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index 8a294ca4ed..f7a0fc538b 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -834,8 +834,10 @@ void xen_block_dataplane_start(XenBlockDataPlane *dataplane,
+ 
+     old_context = blk_get_aio_context(dataplane->blk);
+     aio_context_acquire(old_context);
++    bdrv_drained_begin(blk_bs(dataplane->blk));
+     /* If other users keep the BlockBackend in the iothread, that's ok */
+     blk_set_aio_context(dataplane->blk, dataplane->ctx, NULL);
++    bdrv_drained_end(blk_bs(dataplane->blk));
+     aio_context_release(old_context);
+ 
+     /* Only reason for failure is a NULL channel */
