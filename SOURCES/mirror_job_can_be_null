@@ -1,0 +1,42 @@
+Check for uninitialised job in block/mirror.c
+
+From: Tim Smith <tim.smith@cloud.com>
+
+In mirror_start_job() (which is used for commit-type jobs also) the
+bs->opaque for mirror_top_bs is set before the job field in the structure
+is filled in, because the job has not been created yet.
+
+This becomes a problem because bdrv_drained_begin(bs) is called before the
+job is filled in too, and if there is both something going on and the
+commit was happening somewhere down the tree (so that mirror_top_bs is
+below bs) then we get a segfault in either bdrv_mirror_top_pwritev() or
+bdrv_mirror_top_do_write().
+
+This is fixed upstream as a side-effect of commit 7b32ad2242 where the test
+is corrected and moved into should_copy_to_target() at the same time.
+---
+ block/mirror.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/block/mirror.c b/block/mirror.c
+index d8ecb9efa2..a5f8cca9cb 100644
+--- a/block/mirror.c
++++ b/block/mirror.c
+@@ -1413,7 +1413,7 @@ static int coroutine_fn bdrv_mirror_top_do_write(BlockDriverState *bs,
+     int ret = 0;
+     bool copy_to_target;
+ 
+-    copy_to_target = s->job->ret >= 0 &&
++    copy_to_target = s->job && s->job->ret >= 0 &&
+                      !job_is_cancelled(&s->job->common.job) &&
+                      s->job->copy_mode == MIRROR_COPY_MODE_WRITE_BLOCKING;
+ 
+@@ -1462,7 +1462,7 @@ static int coroutine_fn bdrv_mirror_top_pwritev(BlockDriverState *bs,
+     int ret = 0;
+     bool copy_to_target;
+ 
+-    copy_to_target = s->job->ret >= 0 &&
++    copy_to_target = s->job && s->job->ret >= 0 &&
+                      !job_is_cancelled(&s->job->common.job) &&
+                      s->job->copy_mode == MIRROR_COPY_MODE_WRITE_BLOCKING;
+ 
