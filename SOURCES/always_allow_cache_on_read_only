@@ -1,0 +1,36 @@
+Always allow cache on read-only files
+
+From: Tim Smith <tim.smith@cloud.com>
+
+Even if the caller has asked for no-cache, take that to mean an intention
+to commit writes ASAP, and apply O_DIRECT only when a file is opened for
+write. This allows the page cache to be used for backing files, and thus
+such mechanisms as fs-cache can also work with them.
+
+Signed-off-by: Tim Smith <tim.smith@cloud.com>
+---
+ block/file-posix.c |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/block/file-posix.c b/block/file-posix.c
+index ec98d02252..baafb5b725 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -584,7 +584,7 @@ static void raw_parse_flags(int bdrv_flags, int *open_flags, bool has_writers)
+ 
+     /* Use O_DSYNC for write-through caching, no flags for write-back caching,
+      * and O_DIRECT for no caching. */
+-    if ((bdrv_flags & BDRV_O_NOCACHE)) {
++    if ((bdrv_flags & BDRV_O_NOCACHE) && (*open_flags & O_RDWR)) {
+         *open_flags |= O_DIRECT;
+     }
+ }
+@@ -759,6 +759,8 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
+             error_setg_errno(errp, -ret, "The device is not writable");
+             goto fail;
+         }
++    } else {
++        s->use_linux_aio = false;
+     }
+ 
+     s->perm = 0;
