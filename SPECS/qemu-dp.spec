@@ -1,6 +1,6 @@
-%global package_speccommit f6a955254753ba1d72e2573e399de4a7dc80b11e
+%global package_speccommit cbb8fedd4ed9c4d1442e2a3347497d7db4818e0b
 %global usver 7.0.0
-%global xsver 15
+%global xsver 17
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -31,6 +31,10 @@ Patch10: cancel_all_jobs_on_dataplane_stop
 Patch11: cancel_all_jobs_on_dataplane_start
 Patch12: drain_section_in_dataplane_start
 Patch13: mirror_job_can_be_null
+Patch14: CA-391937-probe-block-alignment-by-statx-syscall.patch
+Patch15: align_requests_to_subcluster_size
+Patch16: ca_400864_log_io_error_code
+Patch17: always_allow_cache_on_read_only
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -41,8 +45,14 @@ BuildRequires: zlib-devel
 BuildRequires: python3 >= 3.6
 BuildRequires: meson
 BuildRequires: libfdt-devel
+%if 0%{?xenserver} < 9
 BuildRequires: devtoolset-11-gcc
 BuildRequires: devtoolset-11-binutils
+%else
+BuildRequires: gcc
+BuildRequires: binutils
+%endif
+BuildRequires: python3-rpm-macros
 Conflicts: xapi-storage-plugins-libs < 3.5.0-1
 %{?_cov_buildrequires}
 
@@ -57,7 +67,9 @@ the storage datapath.
 tar xzf %{SOURCE1}
 
 %build
+%if 0%{?xenserver} < 9
 source /opt/rh/devtoolset-11/enable
+%endif
 
 %{?_cov_make_model:%{_cov_make_model scripts/coverity-scan/model.c}}
 ./configure --cc=gcc --cxx=/dev/null --enable-xen --target-list=i386-softmmu \
@@ -82,7 +94,9 @@ source /opt/rh/devtoolset-11/enable
 %{?_cov_wrap} %{__make} %{?_smp_mflags} V=1 all
 
 %install
+%if 0%{?xenserver} < 9
 source /opt/rh/devtoolset-11/enable
+%endif
 
 %{__make} %{?_smp_mflags} install DESTDIR=%{buildroot}
 rm -rf %{buildroot}/usr/include %{buildroot}%{_libdir}/pkgconfig %{buildroot}%{_libdir}/libcacard.*a \
@@ -95,6 +109,10 @@ install -D -m 755 qemu-dp %{buildroot}%{_libdir}/qemu-dp/bin/qemu-dp
 install -D -m 644 dp-trace-events %{buildroot}%{_libdir}/qemu-dp/bin/trace-events
 # Rename qemu-system-i386 binary to qemu-datapath
 mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qemu-dp/bin/qemu-datapath
+
+# Install QMP
+install -D -m 644 python/qemu/qmp/__init__.py %{buildroot}%{python3_sitelib}/qemudatapath/qmp/__init__.py
+
 %{?_cov_install}
 
 %files
@@ -102,9 +120,28 @@ mv %{buildroot}%{_libdir}/qemu-dp/bin/qemu-system-i386 %{buildroot}%{_libdir}/qe
 %{_libdir}/qemu-dp/bin
 %{_unitdir}/qemu-datapath@.service
 
+%package -n python%{python3_pkgversion}-%{name}-qmp
+Summary:          QMP for QEMU datapath
+
+%description -n python%{python3_pkgversion}-%{name}-qmp
+This package provides a version of Python QMP for use with qemu datapath processes
+
+%files -n python%{python3_pkgversion}-%{name}-qmp
+%{python3_sitelib}/qemudatapath/qmp/*
+
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 05 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-17
+- CA-400864: log the I/O error code in xenblock
+- Turn off O_DIRECT on read-only files
+
+* Mon Sep 09 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-16
+- CA-388210: package and install QMP
+- CA-391937: probe block alignment by statx syscall
+- build qemu-dp on rawhide
+- Backport fixes for qcow extended_l2
+
 * Fri Jul 05 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-15
 - CA-394742 Improve robustness on ring connect/disconnect
 
