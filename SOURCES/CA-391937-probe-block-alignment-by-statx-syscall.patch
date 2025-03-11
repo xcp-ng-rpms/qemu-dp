@@ -1,0 +1,123 @@
+From 9f7c43d4e44777080728b52d29fa90c039af8849 Mon Sep 17 00:00:00 2001
+From: Chunjie Zhu <chunjie.zhu@cloud.com>
+Date: Wed, 7 Aug 2024 06:37:54 +0000
+Subject: [PATCH] CA-391937: probe block alignment by statx syscall
+
+  On kernel 6.6, if we still use the traditional way to probe the
+  alignment for buf size and offset, then we might get incorrect
+  output, see following example.
+
+                                   buffer alignment: 512
+                                          |
+                                         ext3
+                                          |
+   buffer alignment: 4          lvm (dma_alignment: 511)
+           |                              |
+          xfs                       device mapper
+           |                              |
+         sda1                            sda2
+           |                              |
+           ---  sda (dma_alignment: 3)  ---
+
+  We should call statx to probe alignment on kernel 6.6.
+
+Signed-off-by: Chunjie Zhu <chunjie.zhu@cloud.com>
+---
+ block/file-posix.c | 63 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 63 insertions(+)
+
+diff --git a/block/file-posix.c b/block/file-posix.c
+index 39a3d6dbe6..ec98d02252 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -64,6 +64,12 @@
+ #include <sys/dkio.h>
+ #endif
+ #ifdef __linux__
++#include <stdio.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <linux/stat.h>
++#include <unistd.h>
++#include <limits.h>
+ #include <sys/ioctl.h>
+ #include <sys/param.h>
+ #include <sys/syscall.h>
+@@ -382,10 +388,53 @@ static bool raw_is_io_aligned(int fd, void *buf, size_t len)
+     return false;
+ }
+ 
++#ifdef __linux__
++#ifndef AT_STATX_SYNC_AS_STAT
++#define AT_STATX_SYNC_AS_STAT   0x0000
++#endif
++
++static int statx_probe_alignment(int fd, size_t *dio_mem_align,
++		size_t *dio_offset_align)
++{
++    int ret;
++#ifdef STATX_DIOALIGN
++    struct statx statx_buf;
++#endif
++    char proc_name[1024] = { 0 };
++    char file_path[PATH_MAX] = { 0 };
++
++    sprintf(proc_name, "/proc/self/fd/%i", fd);
++    ret = readlink(proc_name, file_path, PATH_MAX);
++    if (ret < 0) {
++        error_printf("readlink get file path error: %d", errno);
++        return ret;
++    }
++
++#ifdef STATX_DIOALIGN
++    ret = syscall(SYS_statx, AT_FDCWD, file_path, AT_STATX_SYNC_AS_STAT,
++			STATX_DIOALIGN, &statx_buf);
++    if (ret < 0) {
++        error_printf("statx syscall error: %d", errno);
++        return ret;
++    }
++
++    *dio_mem_align = statx_buf.stx_dio_mem_align;
++    *dio_offset_align = statx_buf.stx_dio_offset_align;
++#else
++    *dio_mem_align = 0;
++    *dio_offset_align = 0;
++#endif
++
++    return 0;
++}
++#endif
++
+ static void raw_probe_alignment(BlockDriverState *bs, int fd, Error **errp)
+ {
+     BDRVRawState *s = bs->opaque;
+     char *buf;
++    size_t dio_mem_align = 0;
++    size_t dio_offset_align = 0;
+     size_t max_align = MAX(MAX_BLOCKSIZE, qemu_real_host_page_size);
+     size_t alignments[] = {1, 512, 1024, 2048, 4096};
+ 
+@@ -399,6 +448,20 @@ static void raw_probe_alignment(BlockDriverState *bs, int fd, Error **errp)
+ 
+     bs->bl.request_alignment = 0;
+     s->buf_align = 0;
++
++#ifdef __linux__
++    if (statx_probe_alignment(fd, &dio_mem_align, &dio_offset_align) == 0) {
++        size_t align;
++        align = (dio_mem_align > dio_offset_align) ?
++            dio_mem_align : dio_offset_align;
++        if (align > 0) {
++            bs->bl.request_alignment = align;
++            s->buf_align = align;
++            return;
++        }
++    }
++#endif
++
+     /* Let's try to use the logical blocksize for the alignment. */
+     if (probe_logical_blocksize(fd, &bs->bl.request_alignment) < 0) {
+         bs->bl.request_alignment = 0;
+-- 
+2.34.1
+

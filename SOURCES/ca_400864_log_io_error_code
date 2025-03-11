@@ -1,0 +1,24 @@
+CA-400864: When failing I/O in the xen dataplane log the return error
+
+From: Mark Syms <mark.syms@cloud.com>
+
+---
+ hw/block/dataplane/xen-block.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index f7a0fc538b..c6a42efa83 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -265,9 +265,9 @@ static void xen_block_complete_aio(void *opaque, int ret)
+     aio_context_acquire(dataplane->ctx);
+ 
+     if (ret != 0) {
+-        error_report("%s I/O error",
++        error_report("%s I/O error. %d",
+                      request->req.operation == BLKIF_OP_READ ?
+-                     "read" : "write");
++                     "read" : "write", ret);
+         request->aio_errors++;
+     }
+ 
