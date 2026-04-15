@@ -1,6 +1,6 @@
-%global package_speccommit cbb8fedd4ed9c4d1442e2a3347497d7db4818e0b
+%global package_speccommit 1a54700a90bb89977b15162a883d9939a558e34f
 %global usver 7.0.0
-%global xsver 17
+%global xsver 23
 %global xsrel %{xsver}%{?xscount}%{?xshash}
 %global package_srccommit v7.0.0
 
@@ -10,7 +10,11 @@
 
 Summary: qemu-dp storage datapath
 Name: qemu-dp
+%if 0%{?xenserver} < 9
 Epoch: 2
+%else
+Epoch: 0
+%endif
 Version: 7.0.0
 Release: %{?xsrel}%{?dist}
 License: GPL
@@ -31,10 +35,13 @@ Patch10: cancel_all_jobs_on_dataplane_stop
 Patch11: cancel_all_jobs_on_dataplane_start
 Patch12: drain_section_in_dataplane_start
 Patch13: mirror_job_can_be_null
-Patch14: CA-391937-probe-block-alignment-by-statx-syscall.patch
+Patch14: CA-391937-probe-block
 Patch15: align_requests_to_subcluster_size
 Patch16: ca_400864_log_io_error_code
 Patch17: always_allow_cache_on_read_only
+Patch18: revert-microvm-add-device-tree
+Patch19: ca-411821-check-that-stx_mask
+Patch20: ca-416464-eopnotsupp
 BuildRequires: libaio-devel
 BuildRequires: glib2-devel
 # This doesn't look like it should be necessary but the configure isn't clever enough to not require it
@@ -44,7 +51,7 @@ BuildRequires: libseccomp-devel
 BuildRequires: zlib-devel
 BuildRequires: python3 >= 3.6
 BuildRequires: meson
-BuildRequires: libfdt-devel
+BuildRequires: perl-interpreter
 %if 0%{?xenserver} < 9
 BuildRequires: devtoolset-11-gcc
 BuildRequires: devtoolset-11-binutils
@@ -87,7 +94,7 @@ source /opt/rh/devtoolset-11/enable
     --disable-parallels --disable-libusb --with-xen-datapath-only \
     --disable-xen-pci-passthrough \
     --without-default-devices --with-git-submodules=ignore \
-    --disable-vnc --disable-oss \
+    --disable-vnc --disable-oss --disable-selinux \
     --enable-seccomp --meson=/usr/bin/meson
 
 ##CONFIGEND
@@ -132,6 +139,25 @@ This package provides a version of Python QMP for use with qemu datapath process
 %{?_cov_results_package}
 
 %changelog
+* Thu Aug 28 2025 Mark Syms <mark.syms@cloud.com> - 7.0.0-23
+- CA-416464: return BLKIF_RSP_EOPNOTSUPP for unknown op
+
+* Tue Jun 03 2025 Mark Syms <mark.syms@cloud.com> - 7.0.0-22
+- CA-411821: check stx_mask after calling statx
+
+* Fri Jan 24 2025 Alex Brett <alex.brett@cloud.com> - 7.0.0-21
+- CP-53398: Add a missing BuildRequires on perl
+
+* Fri Jan 17 2025 Mark Syms <mark.syms@cloud.com> - 7.0.0-20
+- CP-53227: revert commit f5918a992839454c6e87234760bdf7aee804aa33
+- CP-53227: remove dependency on libfdt-devel
+
+* Mon Nov 25 2024 AshwinH <ashwin.h@cloud.com> - 7.0.0-19
+- CP-49883: Updated epoch conditionals based on XenServer Version
+
+* Tue Nov 12 2024 Lin Liu <Lin.Liu01@cloud.com> - 7.0.0-18
+- CP-50489: Remove selinux
+
 * Tue Nov 05 2024 Tim Smith <tim.smith@cloud.com> - 7.0.0-17
 - CA-400864: log the I/O error code in xenblock
 - Turn off O_DIRECT on read-only files
