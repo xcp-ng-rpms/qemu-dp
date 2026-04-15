@@ -1,0 +1,44 @@
+CA-411821: check that stx_mask has STATX_DIOALOIGN after call
+
+From: Mark Syms <mark.syms@cloud.com>
+
+STATX_DIOALIGN is optional and not implemented by all filesystems,
+after calling `statx` check that the `stx_mask` bitmask has the
+STATX_DIOALIGN bit set before trying to use th response data.
+
+Signed-off-by: Mark Syms <mark.syms@cloud.com>
+---
+ block/file-posix.c |    5 +++++
+ block/trace-events |    3 +++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/block/file-posix.c b/block/file-posix.c
+index baafb5b725..1f5c684c51 100644
+--- a/block/file-posix.c
++++ b/block/file-posix.c
+@@ -418,6 +418,11 @@ static int statx_probe_alignment(int fd, size_t *dio_mem_align,
+         return ret;
+     }
+ 
++    if ((statx_buf.stx_mask & STATX_DIOALIGN) == 0) {
++        trace_probe_alignment_no_dioalign();
++        return -EOPNOTSUPP;
++    }
++
+     *dio_mem_align = statx_buf.stx_dio_mem_align;
+     *dio_offset_align = statx_buf.stx_dio_offset_align;
+ #else
+diff --git a/block/trace-events b/block/trace-events
+index 549090d453..6aca7f8f00 100644
+--- a/block/trace-events
++++ b/block/trace-events
+@@ -58,6 +58,9 @@ qmp_block_job_finalize(void *job) "job %p"
+ qmp_block_job_dismiss(void *job) "job %p"
+ qmp_block_stream(void *bs) "bs %p"
+ 
++# file-posix.c
++probe_alignment_no_dioalign(void) "STATX_DIOALIGN is not supported"
++
+ # file-win32.c
+ file_paio_submit(void *acb, void *opaque, int64_t offset, int count, int type) "acb %p opaque %p offset %"PRId64" count %d type %d"
+ 
