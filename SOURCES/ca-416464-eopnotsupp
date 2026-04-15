@@ -1,0 +1,30 @@
+CA-416464: return BLKIF_RSP_EOPNOTSUPP for unknown operation
+
+From: Mark Syms <mark.syms@cloud.com>
+
+Returning BLKIF_RSP_ERROR if an operation is not supoprted does not
+allow the frontend to exercise any discretion on how to handle the
+response and may lead to an operating system crash. As different
+backends may support different feature sets and we might, during a
+migration, switch backends, an in-flight request might be issued (or
+reissued) which is then not supported by this backend.
+
+Signed-off-by: Mark Syms <mark.syms@cloud.com>
+---
+ hw/block/dataplane/xen-block.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/hw/block/dataplane/xen-block.c b/hw/block/dataplane/xen-block.c
+index c6a42efa83..9a04c55f7a 100644
+--- a/hw/block/dataplane/xen-block.c
++++ b/hw/block/dataplane/xen-block.c
+@@ -165,7 +165,8 @@ static int xen_block_parse_request(XenBlockRequest *request)
+         return 0;
+     default:
+         error_report("error: unknown operation (%d)", request->req.operation);
+-        goto err;
++        request->status = BLKIF_RSP_EOPNOTSUPP;
++        return -1;
+     };
+ 
+     if (request->req.operation != BLKIF_OP_READ &&
